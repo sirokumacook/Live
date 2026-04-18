@@ -53,10 +53,10 @@
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; }
 
-        /* 音声を再生させるため muted は外すが、画面から隠す */
+        /* 動画が止まるのを防ぐため、ある程度のサイズを持たせてほぼ透明にする */
         .hidden-media {
-            position: absolute; width: 10px; height: 10px; opacity: 0.01;
-            pointer-events: none; z-index: -1; top: 0; left: 0;
+            position: absolute; width: 320px; height: 180px; opacity: 0.001;
+            pointer-events: none; z-index: -100; top: 0; left: 0;
         }
     </style>
 </head>
@@ -66,7 +66,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
-        <div id="version-text">VER 3.1.0 (COUNTDOWN & AUDIO FIX)</div>
+        <div id="version-text">VER 3.2.0 (FPS CONTROL & VIDEO FIX)</div>
     </div>
 
     <div id="viewer-mode">
@@ -92,6 +92,14 @@
         </div>
 
         <div id="controls">
+            <div class="control-group" style="border-color: #4CAF50; min-width: 200px;">
+                <h3 style="color: #4CAF50;">BROADCAST SETTINGS</h3>
+                <div style="display: flex; gap: 5px; margin-top: 10px;">
+                    <button id="fps-24-btn" class="btn btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS<br>(LITE)</button>
+                    <button id="fps-60-btn" class="btn btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS<br>(PRO)</button>
+                </div>
+            </div>
+
             <div class="control-group">
                 <h3>MAIN MEDIA</h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
@@ -141,14 +149,33 @@
             </div>
         </div>
 
-        <video id="main-video" class="hidden-media" autoplay loop playsinline></video>
+        <video id="main-video" class="hidden-media" autoplay loop playsinline muted></video>
         <img id="main-img" class="hidden-media">
-        <video id="wipe-video" class="hidden-media" autoplay loop playsinline></video>
+        <video id="wipe-video" class="hidden-media" autoplay loop playsinline muted></video>
         <img id="wipe-img" class="hidden-media">
-        <audio id="bgm-player" class="hidden-media" loop></audio>
+        <audio id="bgm-player" class="hidden-media" loop crossorigin="anonymous"></audio>
     </div>
 
     <script>
+        // ==========================================
+        // 0. FPS 制御ロジック
+        // ==========================================
+        let targetFPS = 24;
+        function setFPS(fps) {
+            targetFPS = fps;
+            if(fps === 24) {
+                document.getElementById('fps-24-btn').style.borderColor = '#4CAF50';
+                document.getElementById('fps-24-btn').style.color = '#4CAF50';
+                document.getElementById('fps-60-btn').style.borderColor = 'gray';
+                document.getElementById('fps-60-btn').style.color = 'gray';
+            } else {
+                document.getElementById('fps-60-btn').style.borderColor = '#4CAF50';
+                document.getElementById('fps-60-btn').style.color = '#4CAF50';
+                document.getElementById('fps-24-btn').style.borderColor = 'gray';
+                document.getElementById('fps-24-btn').style.color = 'gray';
+            }
+        }
+
         // ==========================================
         // 1. ファイル＆メディア制御
         // ==========================================
@@ -279,9 +306,20 @@
             ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
         }
 
-        let lastTime = 0;
+        let lastDrawTime = 0;
+        let lastUpdate = performance.now();
+
         function renderLoop(time) {
-            const dt = (time - lastTime) / 1000; lastTime = time;
+            requestAnimationFrame(renderLoop);
+
+            // FPS制限のロジック
+            const elapsed = time - lastDrawTime;
+            if (elapsed < (1000 / targetFPS) - 1) return; // 指定FPSに合わせて描画をスキップ
+            lastDrawTime = time;
+
+            const dt = (time - lastUpdate) / 1000;
+            lastUpdate = time;
+
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1920, 1080);
             
             // 1. メイン映像
@@ -351,17 +389,18 @@
                 ctx.restore();
             }
 
-            // 4. SCHEDULE (カウントダウン付き) の描画 (画面の一番下・中央)
+            // 4. SCHEDULE (カウントダウン付き) の描画 (一番下・中央)
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
 
-                const sw = 1050, sh = 120;
+                // UIの幅と高さを調整して美しく
+                const sw = 1150, sh = 130;
                 const sx = (1920 - sw) / 2;
                 const sy = 1080 - sh; // 1番下にくっつける
                 const blockX = sx - sw + (sw * 2) * scheduleState.progress;
 
-                // カウントダウン計算 (設定時刻までの差分)
+                // カウントダウン計算
                 const now = new Date();
                 let targetH = 0, targetM = 0;
                 if (scheduleState.time) {
@@ -371,7 +410,7 @@
                 }
                 let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
                 let diff = targetDate - now;
-                if (diff < 0) diff = 0; // 時刻を過ぎていたら 00:00:00 でストップ
+                if (diff < 0) diff = 0; 
                 const diffSec = Math.floor(diff / 1000);
                 const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
                 const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
@@ -382,39 +421,36 @@
                 if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
                     // 背景パネル
                     ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(sx, sy, sw, sh);
-                    ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6); // 上部のオレンジ線
+                    ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6);
 
-                    // 左側: カウントダウン (HH:MM:SS)
+                    // 左側: カウントダウン (HH:MM:SS) 大きく配置
                     ctx.fillStyle = '#fff';
-                    ctx.font = "bold 80px WRCCleanBold";
+                    ctx.font = "bold 90px WRCCleanBold";
                     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                    ctx.fillText(countdownStr, sx + 40, sy + (sh / 2) + 5);
+                    ctx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
 
                     // 区切り線
                     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                    ctx.fillRect(sx + 390, sy + 25, 2, sh - 50);
+                    ctx.fillRect(sx + 440, sy + 25, 2, sh - 50);
 
                     // 右側上: COMING UP NEXT
                     ctx.fillStyle = '#ff5722'; 
-                    ctx.font = "24px WRCCleanBold"; 
+                    ctx.font = "26px WRCCleanBold"; 
                     ctx.textBaseline = 'top';
-                    ctx.fillText("COMING UP NEXT", sx + 420, sy + 25);
+                    ctx.fillText("COMING UP NEXT", sx + 470, sy + 30);
 
                     // 右側下: LOCAL と スケジュール名
                     ctx.fillStyle = '#ff5722'; 
-                    ctx.font = "36px WRCCleanBold";
-                    ctx.fillText("LOCAL", sx + 420, sy + 65);
+                    ctx.font = "40px WRCCleanBold";
+                    ctx.fillText("LOCAL", sx + 470, sy + 70);
                     const localWidth = ctx.measureText("LOCAL ").width;
                     
                     ctx.fillStyle = '#fff';
-                    ctx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 420 + localWidth, sy + 65);
+                    ctx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 470 + localWidth, sy + 70);
                 }
-                // アニメーション用オレンジ帯
                 if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, sy, sw, sh); }
                 ctx.restore();
             }
-
-            requestAnimationFrame(renderLoop);
         }
 
         // ==========================================
@@ -438,7 +474,7 @@
             const src2 = audioCtx.createMediaElementSource(bgmPlayer);
             const src3 = audioCtx.createMediaElementSource(wipeVideo);
             
-            // 全ての音声を配信先とローカルスピーカーの両方に流す
+            // ルーティング（配信とローカルの両方に音を出す）
             src1.connect(dest); src1.connect(audioCtx.destination);
             src2.connect(dest); src2.connect(audioCtx.destination);
             src3.connect(dest); src3.connect(audioCtx.destination);
@@ -454,8 +490,8 @@
             
             const mixedAudioTrack = initAudioMixer();
 
-            // P2P送信用のストリーム生成 (負荷軽減のため24FPSに)
-            const canvasStream = canvas.captureStream(24);
+            // P2P送信用のストリーム生成 (ベースは最大滑らかさの60FPSで生成)
+            const canvasStream = canvas.captureStream(60);
             const videoTrack = canvasStream.getVideoTracks()[0];
             mixedStream = new MediaStream([videoTrack, mixedAudioTrack]);
 
