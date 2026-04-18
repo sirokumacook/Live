@@ -6,7 +6,6 @@
     <title>WRC P2P Broadcast System</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* GitHub Pagesのディレクトリ構造に対応するため、相対パスで指定 */
         @font-face {
             font-family: 'WRCCleanBold';
             src: url('./WRCCleanBold.ttf') format('truetype');
@@ -30,7 +29,7 @@
             padding: 0;
             background-color: var(--wrc-navy-dark);
             color: var(--text-main);
-            overflow: hidden; /* 視聴時のフルスクリーン化のためスクロールバーを隠す */
+            overflow: hidden;
         }
 
         /* ----- モード選択画面 ----- */
@@ -79,7 +78,6 @@
             border: 2px solid var(--wrc-orange);
             text-align: center;
         }
-        /* 映像部分は完全に画面全体を覆う */
         #viewer-video {
             position: absolute;
             top: 0;
@@ -111,44 +109,55 @@
         #preview-wrapper {
             flex: 1;
             background-color: #000;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            overflow: hidden;
             position: relative;
+            overflow: hidden; /* はみ出した部分はカットしてギリギリまで拡大 */
         }
 
         #preview-area {
             width: 1920px;
             height: 1080px;
-            position: relative;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: center center;
             background-color: #111;
-            transform-origin: top center;
         }
 
         #controls {
-            height: 35vh;
             background-color: var(--wrc-navy);
             border-top: 2px solid var(--wrc-orange);
-            padding: 20px;
+            padding: 15px;
             display: flex;
-            gap: 20px;
+            gap: 15px;
             overflow-x: auto;
+            flex-shrink: 0; /* コントロールパネルの高さは圧縮しない */
         }
 
         .control-group {
             background: var(--wrc-navy-dark);
             border: 1px solid rgba(255, 87, 34, 0.3);
-            padding: 15px;
-            min-width: 280px;
+            padding: 12px;
+            min-width: 250px;
         }
 
         .control-group h3 {
             color: var(--wrc-orange);
             margin-top: 0;
-            font-size: 16px;
+            font-size: 14px;
             border-bottom: 1px solid var(--wrc-orange);
             padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        /* ファイル切り替え用セレクトボックス */
+        select.file-select {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+            background: var(--wrc-navy);
+            color: white;
+            border: 1px solid var(--wrc-orange);
+            font-family: monospace;
         }
 
         #main-media-container {
@@ -156,13 +165,15 @@
             position: absolute; top: 0; left: 0;
         }
         #main-media-container video, #main-media-container img {
-            width: 100%; height: 100%; object-fit: contain;
+            width: 100%; height: 100%; 
+            object-fit: cover; /* 黒帯が出ないよう画面いっぱいに埋める */
         }
 
+        /* オーバーレイ全体をさらに左下へ */
         #bottom-left-overlays {
             position: absolute;
-            bottom: 60px; left: 60px;
-            display: flex; flex-direction: column; gap: 30px;
+            bottom: 20px; left: 20px;
+            display: flex; flex-direction: column; gap: 15px;
             align-items: flex-start;
             z-index: 10;
         }
@@ -172,7 +183,6 @@
             position: relative;
             overflow: hidden;
             visibility: hidden;
-            box-shadow: 10px 10px 30px rgba(0,0,0,0.8);
         }
         .reveal-wrapper.is-visible { visibility: visible; }
         .reveal-content { opacity: 0; }
@@ -210,9 +220,13 @@
             50%, 100% { opacity: 0; }
         }
 
+        /* 各種オーバーレイのサイズ縮小と影の付与 */
         #wipe-container {
-            width: 480px; aspect-ratio: 16/9;
-            background-color: #000; border: 4px solid var(--wrc-orange);
+            width: 320px; /* 小さくしました */
+            aspect-ratio: 16/9;
+            background-color: #000; 
+            border: 3px solid var(--wrc-orange);
+            box-shadow: 5px 5px 20px rgba(0,0,0,0.8); /* 影を中身に移動 */
         }
         #wipe-container video, #wipe-container img {
             width: 100%; height: 100%; object-fit: cover;
@@ -220,18 +234,28 @@
 
         .info-panel {
             background-color: var(--wrc-navy);
-            border-left: 8px solid var(--wrc-orange);
-            padding: 20px 30px;
-            font-size: 32px;
-            letter-spacing: 2px;
-            line-height: 1.4;
+            border-left: 6px solid var(--wrc-orange);
+            padding: 10px 15px; /* 余白を縮小 */
+            font-size: 18px; /* フォントサイズを縮小 */
+            letter-spacing: 1px;
+            line-height: 1.3;
+            box-shadow: 5px 5px 20px rgba(0,0,0,0.8); /* 影を中身に移動 */
         }
 
-        #weather-overlay .header { color: var(--wrc-orange); font-size: 28px; margin-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.2); }
+        #weather-overlay .header { 
+            color: var(--wrc-orange); 
+            font-size: 16px; 
+            margin-bottom: 5px; 
+            border-bottom: 1px solid rgba(255,255,255,0.2); 
+        }
         
         #broadcast-info {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: rgba(0,0,0,0.7); padding: 10px; font-size: 14px; color: yellow;
+        }
+
+        .btn-small {
+            width: 48%; margin: 0; padding: 8px; font-size: 12px;
         }
     </style>
 </head>
@@ -280,7 +304,7 @@
                     </div>
                     <div id="text-wrapper" class="reveal-wrapper">
                         <div class="reveal-blocker"></div>
-                        <div id="text-overlay" class="reveal-content info-panel" style="max-width: 800px; word-wrap: break-word;"></div>
+                        <div id="text-overlay" class="reveal-content info-panel" style="max-width: 500px; word-wrap: break-word;"></div>
                     </div>
                 </div>
             </div>
@@ -289,42 +313,58 @@
         <div id="controls">
             <div class="control-group" style="border-color: #4CAF50;">
                 <h3 style="color: #4CAF50;">P2P STREAMING</h3>
-                <p style="font-size: 12px; color: #ccc;">「START CAPTURE」を押し、<br>このタブを共有してください。</p>
-                <button class="btn" onclick="startScreenCapture()" style="width: 100%; margin: 0; padding: 10px; font-size: 16px; border-color: #4CAF50; color: #4CAF50;">START CAPTURE</button>
+                <p style="font-size: 11px; color: #ccc;">START CAPTUREを押して<br>このタブを共有</p>
+                <button class="btn" onclick="startScreenCapture()" style="width: 100%; margin: 0; padding: 10px; font-size: 14px; border-color: #4CAF50; color: #4CAF50;">START CAPTURE</button>
             </div>
+            
             <div class="control-group">
                 <h3>MAIN DISPLAY</h3>
-                <input type="file" id="main-file" accept="video/*,image/*" style="width: 100%; color: white; margin-bottom: 10px;">
-                <button class="btn" onclick="showMainMedia()" style="width: 100%; margin: 0; padding: 10px; font-size: 16px;">SET MAIN</button>
+                <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
+                <select id="main-file-select" class="file-select" onchange="switchMainMedia()">
+                    <option value="">ファイルを選択してください</option>
+                </select>
             </div>
+            
             <div class="control-group">
                 <h3>WIPE DISPLAY</h3>
-                <input type="file" id="wipe-file" accept="video/*,image/*" style="width: 100%; color: white; margin-bottom: 10px;">
-                <button class="btn" onclick="toggleOverlay('wipe-wrapper', true, showWipeMedia)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">SHOW</button>
-                <button class="btn" onclick="toggleOverlay('wipe-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
+                <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
+                <select id="wipe-file-select" class="file-select" onchange="switchWipeMedia()">
+                    <option value="">ファイルを選択してください</option>
+                </select>
+                <div>
+                    <button class="btn btn-small" onclick="toggleOverlay('wipe-wrapper', true)">SHOW</button>
+                    <button class="btn btn-small" onclick="toggleOverlay('wipe-wrapper', false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
             </div>
+            
             <div class="control-group">
                 <h3>TELEMETRY TEXT</h3>
-                <input type="text" id="overlay-text-input" placeholder="ENTER TEXT..." style="width: 100%; font-size: 14px;">
-                <button class="btn" onclick="toggleOverlay('text-wrapper', true, updateText)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">SHOW</button>
-                <button class="btn" onclick="toggleOverlay('text-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
+                <input type="text" id="overlay-text-input" placeholder="ENTER TEXT..." style="width: 100%; font-size: 14px; margin-bottom: 10px;">
+                <div>
+                    <button class="btn btn-small" onclick="toggleOverlay('text-wrapper', true, updateText)">SHOW</button>
+                    <button class="btn btn-small" onclick="toggleOverlay('text-wrapper', false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
             </div>
+            
             <div class="control-group">
                 <h3>WEATHER</h3>
-                <button class="btn" onclick="toggleOverlay('weather-wrapper', true, fetchWeather)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">FETCH & SHOW</button>
-                <button class="btn" onclick="toggleOverlay('weather-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
+                <div style="margin-top: 25px;">
+                    <button class="btn btn-small" onclick="toggleOverlay('weather-wrapper', true, fetchWeather)">FETCH & SHOW</button>
+                    <button class="btn btn-small" onclick="toggleOverlay('weather-wrapper', false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // UIスケールと要素制御ロジック
+        // UIスケール調整 (ギリギリまで拡大＆中央配置)
         function resizePreview() {
             const wrapper = document.getElementById('preview-wrapper');
             const area = document.getElementById('preview-area');
             if(!wrapper) return;
-            const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
-            area.style.transform = `scale(${scale})`;
+            // wrapperのサイズに合わせて最大まで拡大（余白を潰す）
+            const scale = Math.max(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
+            area.style.transform = `translate(-50%, -50%) scale(${scale})`;
         }
         window.addEventListener('resize', resizePreview);
 
@@ -340,20 +380,51 @@
             return el;
         }
 
-        function showMainMedia() {
-            const fileInput = document.getElementById('main-file');
-            if (!fileInput.files.length) return;
-            const container = document.getElementById('main-media-container');
-            container.innerHTML = '';
-            container.appendChild(createMediaElement(fileInput.files[0]));
+        // --- 複数ファイル管理ロジック ---
+        let mainFiles = [];
+        let wipeFiles = [];
+
+        function handleFiles(type) {
+            const input = document.getElementById(`${type}-file`);
+            const select = document.getElementById(`${type}-file-select`);
+            select.innerHTML = ''; 
+            
+            const files = Array.from(input.files);
+            if (type === 'main') mainFiles = files;
+            else wipeFiles = files;
+
+            files.forEach((file, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.text = file.name;
+                select.appendChild(option);
+            });
+
+            // 読み込んだら自動的に最初のファイルをセット
+            if(files.length > 0) {
+                if(type === 'main') switchMainMedia();
+                if(type === 'wipe') switchWipeMedia();
+            } else {
+                select.innerHTML = '<option value="">ファイルを選択してください</option>';
+            }
         }
 
-        function showWipeMedia() {
-            const fileInput = document.getElementById('wipe-file');
-            if (!fileInput.files.length) return false;
+        function switchMainMedia() {
+            const select = document.getElementById('main-file-select');
+            if(select.value === "") return;
+            const file = mainFiles[select.value];
+            const container = document.getElementById('main-media-container');
+            container.innerHTML = '';
+            container.appendChild(createMediaElement(file));
+        }
+
+        function switchWipeMedia() {
+            const select = document.getElementById('wipe-file-select');
+            if(select.value === "") return false;
+            const file = wipeFiles[select.value];
             const container = document.getElementById('wipe-container');
             container.innerHTML = '';
-            container.appendChild(createMediaElement(fileInput.files[0]));
+            container.appendChild(createMediaElement(file));
             return true;
         }
 
@@ -367,7 +438,11 @@
         function toggleOverlay(wrapperId, show, updateFn = null) {
             const wrapper = document.getElementById(wrapperId);
             if (show) {
-                if (wrapper.classList.contains('is-visible')) return;
+                if (wrapper.classList.contains('is-visible')) {
+                    // 既に表示中の場合はアニメーションなしで中身だけ即時更新
+                    if (updateFn) updateFn();
+                    return;
+                }
                 if (updateFn && updateFn() === false) return;
                 wrapper.classList.remove('anim-out');
                 wrapper.classList.add('anim-in');
@@ -415,7 +490,7 @@
         }
 
         // ==========================================
-        // P2P ハンドシェイク & ストリーミングロジック
+        // P2P ハンドシェイク & ストリーミングロジック (改修版)
         // ==========================================
         let peer = null;
         let localStream = null;
@@ -432,25 +507,21 @@
                 document.getElementById('my-peer-id').innerText = id;
             });
 
-            // 1. 視聴者からのハンドシェイク（データ接続）を待ち受ける
+            // 視聴者からの文字データ（ハンドシェイク）を待つ
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
-                    if (data === 'HELLO_HOST') {
-                        console.log("視聴者からの接続を確認しました");
-                        conn.send('ACK_VIEWER'); // ハンドシェイク応答
+                    if (data && data.type === 'HELLO_HOST') {
+                        console.log("視聴者を確認:", data.viewerId);
+                        if (localStream) {
+                            // ホスト側から視聴者へ映像を「発信」する
+                            peer.call(data.viewerId, localStream);
+                            document.getElementById('p2p-status').innerText = "Viewer Connected!";
+                            document.getElementById('p2p-status').style.color = "yellow";
+                        } else {
+                            alert("視聴者が接続しましたが、映像のキャプチャが開始されていません！");
+                        }
                     }
                 });
-            });
-
-            // 2. ハンドシェイク完了後のメディア要求に応答する
-            peer.on('call', (call) => {
-                if (localStream) {
-                    call.answer(localStream);
-                    document.getElementById('p2p-status').innerText = "Viewer Connected!";
-                    document.getElementById('p2p-status').style.color = "yellow";
-                } else {
-                    alert("視聴者がアクセスしましたが、キャプチャが開始されていません。");
-                }
             });
         }
 
@@ -476,35 +547,30 @@
         function initViewer() {
             document.getElementById('mode-selection').style.display = 'none';
             document.getElementById('viewer-mode').style.display = 'flex';
-            peer = new Peer();
+            peer = new Peer(); // ランダムIDで待機
         }
 
         function connectToHost() {
             const hostId = document.getElementById('host-id-input').value.trim();
             if (!hostId) return;
 
-            // 1. ハンドシェイク（データ接続）の開始
+            // 1. まず文字データでホストに自分のIDを教える
             const conn = peer.connect(hostId);
             conn.on('open', () => {
-                console.log("ホストへハンドシェイクを送信");
-                conn.send('HELLO_HOST');
+                console.log("ホストにハンドシェイクを送信");
+                conn.send({ type: 'HELLO_HOST', viewerId: peer.id });
             });
 
-            // 2. ホストからの応答を受け取ってから映像を要求する
-            conn.on('data', (data) => {
-                if (data === 'ACK_VIEWER') {
-                    console.log("ハンドシェイク成功。映像ストリームを要求します。");
-                    const emptyStream = new MediaStream();
-                    const call = peer.call(hostId, emptyStream);
-
-                    call.on('stream', (remoteStream) => {
-                        // 余計なUIを完全に消し、フルスクリーンで映像のみを表示
-                        document.getElementById('viewer-ui').style.display = 'none';
-                        const video = document.getElementById('viewer-video');
-                        video.style.display = 'block';
-                        video.srcObject = remoteStream;
-                    });
-                }
+            // 2. ホストからの着信（映像）を待ち受ける
+            peer.on('call', (call) => {
+                call.answer(); // 着信を許可する
+                call.on('stream', (remoteStream) => {
+                    // 映像を受信したら画面を切り替え
+                    document.getElementById('viewer-ui').style.display = 'none';
+                    const video = document.getElementById('viewer-video');
+                    video.style.display = 'block';
+                    video.srcObject = remoteStream;
+                });
             });
 
             conn.on('error', (err) => {
