@@ -3,31 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WRC Style P2P Broadcast System</title>
+    <title>WRC P2P Broadcast System</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* WRC風のカラーパレットとモダンなUI設定 */
+        /* GitHub Pagesのディレクトリ構造に対応するため、相対パスで指定 */
+        @font-face {
+            font-family: 'WRCCleanBold';
+            src: url('./WRCCleanBold.ttf') format('truetype');
+        }
+
         :root {
             --wrc-navy: #0a192f;
             --wrc-navy-dark: #020c1b;
             --wrc-orange: #ff5722;
-            --wrc-orange-hover: #e64a19;
             --text-main: #e6f1ff;
-            --panel-bg: rgba(10, 25, 47, 0.85);
         }
 
         * {
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'WRCCleanBold', sans-serif;
+            text-transform: uppercase;
         }
 
         body {
             margin: 0;
+            padding: 0;
             background-color: var(--wrc-navy-dark);
             color: var(--text-main);
-            overflow: hidden; /* 全画面表示用 */
+            overflow: hidden; /* 視聴時のフルスクリーン化のためスクロールバーを隠す */
         }
 
-        /* モード選択画面 */
+        /* ----- モード選択画面 ----- */
         #mode-selection {
             display: flex;
             flex-direction: column;
@@ -37,370 +43,473 @@
             background: radial-gradient(circle, var(--wrc-navy), var(--wrc-navy-dark));
         }
 
-        .mode-btn {
+        .btn {
             background-color: transparent;
             color: var(--wrc-orange);
             border: 2px solid var(--wrc-orange);
             padding: 15px 40px;
             font-size: 24px;
-            font-weight: bold;
             margin: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
-        .mode-btn:hover {
+        .btn:hover {
             background-color: var(--wrc-orange);
             color: var(--wrc-navy-dark);
             box-shadow: 0 0 15px var(--wrc-orange);
         }
 
-        /* 放送モードのレイアウト */
-        #broadcast-mode {
+        /* ----- 視聴モード画面 ----- */
+        #viewer-mode {
             display: none;
             height: 100vh;
             width: 100vw;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+        }
+        #viewer-ui {
+            z-index: 100;
+            position: absolute;
+            background: var(--wrc-navy);
+            padding: 30px;
+            border: 2px solid var(--wrc-orange);
+            text-align: center;
+        }
+        /* 映像部分は完全に画面全体を覆う */
+        #viewer-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 18px;
+            background: var(--wrc-navy-dark);
+            border: 1px solid var(--wrc-orange);
+            color: white;
+            margin-bottom: 15px;
+            width: 300px;
+            text-align: center;
         }
 
-        /* 左側のコントロールパネル */
+        /* ----- 放送モード画面 ----- */
+        #broadcast-mode {
+            display: none;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #preview-wrapper {
+            flex: 1;
+            background-color: #000;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #preview-area {
+            width: 1920px;
+            height: 1080px;
+            position: relative;
+            background-color: #111;
+            transform-origin: top center;
+        }
+
         #controls {
-            width: 350px;
-            height: 100%;
+            height: 35vh;
             background-color: var(--wrc-navy);
-            border-right: 2px solid var(--wrc-orange);
+            border-top: 2px solid var(--wrc-orange);
             padding: 20px;
-            overflow-y: auto;
-            position: absolute;
-            left: 0;
-            top: 0;
-            z-index: 100;
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
         }
 
         .control-group {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid rgba(255, 87, 34, 0.3);
+            background: var(--wrc-navy-dark);
+            border: 1px solid rgba(255, 87, 34, 0.3);
+            padding: 15px;
+            min-width: 280px;
         }
 
         .control-group h3 {
             color: var(--wrc-orange);
-            font-size: 14px;
             margin-top: 0;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
+            font-size: 16px;
+            border-bottom: 1px solid var(--wrc-orange);
+            padding-bottom: 5px;
         }
 
-        input[type="file"], input[type="text"] {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            background: var(--wrc-navy-dark);
-            border: 1px solid #4a5d7e;
-            color: white;
-            border-radius: 4px;
-        }
-
-        button.action-btn {
-            width: 100%;
-            background-color: var(--wrc-orange);
-            color: white;
-            border: none;
-            padding: 10px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-
-        button.action-btn:hover {
-            background-color: var(--wrc-orange-hover);
-        }
-
-        /* 右側の放送プレビュー画面 */
-        #preview-area {
-            margin-left: 350px;
-            height: 100%;
-            background-color: #000;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* メインメディア（全画面1枚） */
         #main-media-container {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
         }
-
         #main-media-container video, #main-media-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain; /* アスペクト比を維持。画面いっぱいにしたい場合は cover */
+            width: 100%; height: 100%; object-fit: contain;
         }
 
-        /* 左下のオーバーレイ群（ワイプ、天気、テキスト） */
         #bottom-left-overlays {
             position: absolute;
-            bottom: 30px;
-            left: 30px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            z-index: 10;
+            bottom: 60px; left: 60px;
+            display: flex; flex-direction: column; gap: 30px;
             align-items: flex-start;
+            z-index: 10;
         }
 
-        /* ワイプ（PiP） */
+        /* --- オレンジ帯トランジション --- */
+        .reveal-wrapper {
+            position: relative;
+            overflow: hidden;
+            visibility: hidden;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.8);
+        }
+        .reveal-wrapper.is-visible { visibility: visible; }
+        .reveal-content { opacity: 0; }
+        .reveal-wrapper.is-visible .reveal-content { opacity: 1; }
+
+        .reveal-blocker {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--wrc-orange);
+            transform: translateX(-101%);
+            z-index: 20;
+        }
+
+        .reveal-wrapper.anim-in .reveal-blocker { animation: slide-blocker 0.6s cubic-bezier(0.8, 0, 0.2, 1) forwards; }
+        .reveal-wrapper.anim-in .reveal-content { animation: show-content 0.6s forwards; }
+        .reveal-wrapper.anim-out .reveal-blocker { animation: slide-blocker-out 0.6s cubic-bezier(0.8, 0, 0.2, 1) forwards; }
+        .reveal-wrapper.anim-out .reveal-content { animation: hide-content 0.6s forwards; }
+
+        @keyframes slide-blocker {
+            0% { transform: translateX(-101%); }
+            50% { transform: translateX(0); }
+            100% { transform: translateX(101%); }
+        }
+        @keyframes show-content {
+            0%, 49% { opacity: 0; }
+            50%, 100% { opacity: 1; }
+        }
+        @keyframes slide-blocker-out {
+            0% { transform: translateX(101%); }
+            50% { transform: translateX(0); }
+            100% { transform: translateX(-101%); }
+        }
+        @keyframes hide-content {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
         #wipe-container {
-            width: 320px;
-            aspect-ratio: 16/9;
-            background-color: #000;
-            border: 2px solid var(--wrc-orange);
-            display: none; /* 初期非表示 */
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
+            width: 480px; aspect-ratio: 16/9;
+            background-color: #000; border: 4px solid var(--wrc-orange);
         }
-
         #wipe-container video, #wipe-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            width: 100%; height: 100%; object-fit: cover;
         }
 
-        /* 天気オーバーレイ */
-        #weather-overlay {
+        .info-panel {
             background-color: var(--wrc-navy);
-            border-left: 4px solid var(--wrc-orange);
-            padding: 10px 15px;
-            display: none;
-            font-family: monospace;
-            font-size: 16px;
-            font-weight: bold;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-            text-transform: uppercase;
+            border-left: 8px solid var(--wrc-orange);
+            padding: 20px 30px;
+            font-size: 32px;
+            letter-spacing: 2px;
+            line-height: 1.4;
         }
 
-        .weather-line { margin: 2px 0; }
-
-        /* テキストオーバーレイ */
-        #text-overlay {
-            background-color: var(--wrc-navy);
-            border-left: 4px solid var(--wrc-orange);
-            padding: 10px 15px;
-            display: none;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-            max-width: 400px;
-            word-wrap: break-word;
+        #weather-overlay .header { color: var(--wrc-orange); font-size: 28px; margin-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.2); }
+        
+        #broadcast-info {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(0,0,0,0.7); padding: 10px; font-size: 14px; color: yellow;
         }
-
     </style>
 </head>
 <body>
 
     <div id="mode-selection">
-        <h1 style="color: white; margin-bottom: 40px; font-style: italic;">P2P RALLY BROADCAST</h1>
-        <button class="mode-btn" onclick="selectMode('view')">VIEW MODE</button>
-        <button class="mode-btn" onclick="selectMode('broadcast')">BROADCAST MODE</button>
+        <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
+        <p style="margin-bottom: 50px; font-size: 20px; color: gray;">Powered by PeerJS</p>
+        <button class="btn" onclick="initViewer()">VIEWER MODE</button>
+        <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
+    </div>
+
+    <div id="viewer-mode">
+        <div id="viewer-ui">
+            <h2 style="color: var(--wrc-orange);">CONNECT TO BROADCAST</h2>
+            <p style="font-size: 14px;">放送画面に表示されているIDを入力</p>
+            <input type="text" id="host-id-input" placeholder="HOST ID">
+            <br>
+            <button class="btn" onclick="connectToHost()">CONNECT</button>
+        </div>
+        <video id="viewer-video" autoplay playsinline></video>
     </div>
 
     <div id="broadcast-mode">
-        <div id="controls">
-            <h2 style="color: white; border-bottom: 2px solid var(--wrc-orange); padding-bottom: 10px;">CONTROL ROOM</h2>
-            
-            <div class="control-group">
-                <h3>MAIN DISPLAY (FULL SCREEN)</h3>
-                <input type="file" id="main-file" accept="video/*,image/*">
-                <button class="action-btn" onclick="showMainMedia()">DISPLAY MAIN</button>
-            </div>
+        <div id="broadcast-info">
+            HOST ID: <span id="my-peer-id">Generating...</span><br>
+            <span id="p2p-status">Not connected</span>
+        </div>
 
-            <div class="control-group">
-                <h3>WIPE DISPLAY (BOTTOM LEFT)</h3>
-                <input type="file" id="wipe-file" accept="video/*,image/*">
-                <button class="action-btn" onclick="showWipeMedia()">DISPLAY WIPE</button>
-                <button class="action-btn" onclick="hideWipeMedia()" style="margin-top: 5px; background: #555;">HIDE WIPE</button>
-            </div>
-
-            <div class="control-group">
-                <h3>TELEMETRY TEXT</h3>
-                <input type="text" id="overlay-text-input" placeholder="Enter broadcast text...">
-                <button class="action-btn" onclick="showText()">DISPLAY TEXT</button>
-                <button class="action-btn" onclick="hideText()" style="margin-top: 5px; background: #555;">HIDE TEXT</button>
-            </div>
-
-            <div class="control-group">
-                <h3>WEATHER CONDITION</h3>
-                <button class="action-btn" onclick="showWeather()">FETCH & DISPLAY WEATHER</button>
-                <button class="action-btn" onclick="hideWeather()" style="margin-top: 5px; background: #555;">HIDE WEATHER</button>
-            </div>
-            
-            <div style="margin-top: 40px;">
-                <button class="action-btn" style="background: transparent; border: 1px solid white;" onclick="location.reload()">EXIT BROADCAST</button>
+        <div id="preview-wrapper">
+            <div id="preview-area">
+                <div id="main-media-container"></div>
+                <div id="bottom-left-overlays">
+                    <div id="wipe-wrapper" class="reveal-wrapper">
+                        <div class="reveal-blocker"></div>
+                        <div id="wipe-container" class="reveal-content"></div>
+                    </div>
+                    <div id="weather-wrapper" class="reveal-wrapper">
+                        <div class="reveal-blocker"></div>
+                        <div id="weather-overlay" class="reveal-content info-panel">
+                            <div class="header">WEATHER CONDITION</div>
+                            <div id="weather-cond">COND: --</div>
+                            <div id="weather-temp">TEMP: -- °C</div>
+                            <div id="weather-wind">WIND: -- / -- km/h</div>
+                        </div>
+                    </div>
+                    <div id="text-wrapper" class="reveal-wrapper">
+                        <div class="reveal-blocker"></div>
+                        <div id="text-overlay" class="reveal-content info-panel" style="max-width: 800px; word-wrap: break-word;"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="preview-area">
-            <div id="main-media-container">
-                </div>
-
-            <div id="bottom-left-overlays">
-                <div id="wipe-container"></div>
-                <div id="weather-overlay">
-                    <div class="weather-line" id="weather-cond">COND: --</div>
-                    <div class="weather-line" id="weather-temp">TEMP: -- °C</div>
-                    <div class="weather-line" id="weather-wind">WIND: -- / -- km/h</div>
-                </div>
-                <div id="text-overlay"></div>
+        <div id="controls">
+            <div class="control-group" style="border-color: #4CAF50;">
+                <h3 style="color: #4CAF50;">P2P STREAMING</h3>
+                <p style="font-size: 12px; color: #ccc;">「START CAPTURE」を押し、<br>このタブを共有してください。</p>
+                <button class="btn" onclick="startScreenCapture()" style="width: 100%; margin: 0; padding: 10px; font-size: 16px; border-color: #4CAF50; color: #4CAF50;">START CAPTURE</button>
+            </div>
+            <div class="control-group">
+                <h3>MAIN DISPLAY</h3>
+                <input type="file" id="main-file" accept="video/*,image/*" style="width: 100%; color: white; margin-bottom: 10px;">
+                <button class="btn" onclick="showMainMedia()" style="width: 100%; margin: 0; padding: 10px; font-size: 16px;">SET MAIN</button>
+            </div>
+            <div class="control-group">
+                <h3>WIPE DISPLAY</h3>
+                <input type="file" id="wipe-file" accept="video/*,image/*" style="width: 100%; color: white; margin-bottom: 10px;">
+                <button class="btn" onclick="toggleOverlay('wipe-wrapper', true, showWipeMedia)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">SHOW</button>
+                <button class="btn" onclick="toggleOverlay('wipe-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
+            </div>
+            <div class="control-group">
+                <h3>TELEMETRY TEXT</h3>
+                <input type="text" id="overlay-text-input" placeholder="ENTER TEXT..." style="width: 100%; font-size: 14px;">
+                <button class="btn" onclick="toggleOverlay('text-wrapper', true, updateText)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">SHOW</button>
+                <button class="btn" onclick="toggleOverlay('text-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
+            </div>
+            <div class="control-group">
+                <h3>WEATHER</h3>
+                <button class="btn" onclick="toggleOverlay('weather-wrapper', true, fetchWeather)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px;">FETCH & SHOW</button>
+                <button class="btn" onclick="toggleOverlay('weather-wrapper', false)" style="width: 48%; margin: 0; padding: 10px; font-size: 14px; border-color: gray; color: gray;">HIDE</button>
             </div>
         </div>
     </div>
 
     <script>
-        // モード選択
-        function selectMode(mode) {
-            document.getElementById('mode-selection').style.display = 'none';
-            if (mode === 'broadcast') {
-                document.getElementById('broadcast-mode').style.display = 'block';
-            } else {
-                // 視聴モードの実装（P2P受信側のロジックをここに追加）
-                alert('視聴モード: P2P接続の受信待機画面をここに実装します。');
-                location.reload(); 
-            }
+        // UIスケールと要素制御ロジック
+        function resizePreview() {
+            const wrapper = document.getElementById('preview-wrapper');
+            const area = document.getElementById('preview-area');
+            if(!wrapper) return;
+            const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
+            area.style.transform = `scale(${scale})`;
         }
+        window.addEventListener('resize', resizePreview);
 
-        // ファイルからメディア要素（動画か画像）を生成する共通関数
-        function createMediaElement(file, isMuted = true) {
+        function createMediaElement(file) {
             const fileURL = URL.createObjectURL(file);
-            let mediaElement;
-            
+            let el;
             if (file.type.startsWith('video/')) {
-                mediaElement = document.createElement('video');
-                mediaElement.src = fileURL;
-                mediaElement.autoplay = true;
-                mediaElement.loop = true;
-                mediaElement.muted = isMuted; // 放送側は通常ミュート（ハウリング防止）
-            } else if (file.type.startsWith('image/')) {
-                mediaElement = document.createElement('img');
-                mediaElement.src = fileURL;
+                el = document.createElement('video');
+                el.src = fileURL; el.autoplay = true; el.loop = true; el.muted = true;
+            } else {
+                el = document.createElement('img'); el.src = fileURL;
             }
-            return mediaElement;
+            return el;
         }
 
-        // メインメディアの表示（全画面では1枚のみ配置）
         function showMainMedia() {
             const fileInput = document.getElementById('main-file');
-            if (!fileInput.files.length) return alert('ファイルを選択してください');
-
+            if (!fileInput.files.length) return;
             const container = document.getElementById('main-media-container');
-            container.innerHTML = ''; // 既存のメディアを削除（全画面1枚制限）
-
-            const element = createMediaElement(fileInput.files[0], true);
-            container.appendChild(element);
+            container.innerHTML = '';
+            container.appendChild(createMediaElement(fileInput.files[0]));
         }
 
-        // ワイプメディアの表示（左下）
         function showWipeMedia() {
             const fileInput = document.getElementById('wipe-file');
-            if (!fileInput.files.length) return alert('ファイルを選択してください');
-
+            if (!fileInput.files.length) return false;
             const container = document.getElementById('wipe-container');
-            container.innerHTML = ''; // 既存のメディアを削除
-            
-            const element = createMediaElement(fileInput.files[0], true);
-            container.appendChild(element);
-            container.style.display = 'block';
+            container.innerHTML = '';
+            container.appendChild(createMediaElement(fileInput.files[0]));
+            return true;
         }
 
-        function hideWipeMedia() {
-            document.getElementById('wipe-container').style.display = 'none';
-            document.getElementById('wipe-container').innerHTML = '';
+        function updateText() {
+            const text = document.getElementById('overlay-text-input').value;
+            if (!text) return false;
+            document.getElementById('text-overlay').innerText = text;
+            return true;
         }
 
-        // テキストの表示
-        function showText() {
-            const textInput = document.getElementById('overlay-text-input').value;
-            if (!textInput) return;
-
-            const overlay = document.getElementById('text-overlay');
-            overlay.innerText = textInput;
-            overlay.style.display = 'block';
+        function toggleOverlay(wrapperId, show, updateFn = null) {
+            const wrapper = document.getElementById(wrapperId);
+            if (show) {
+                if (wrapper.classList.contains('is-visible')) return;
+                if (updateFn && updateFn() === false) return;
+                wrapper.classList.remove('anim-out');
+                wrapper.classList.add('anim-in');
+                wrapper.classList.add('is-visible');
+                setTimeout(() => wrapper.classList.remove('anim-in'), 600);
+            } else {
+                if (!wrapper.classList.contains('is-visible')) return;
+                wrapper.classList.remove('anim-in');
+                wrapper.classList.add('anim-out');
+                setTimeout(() => {
+                    wrapper.classList.remove('is-visible');
+                    wrapper.classList.remove('anim-out');
+                }, 600);
+            }
         }
 
-        function hideText() {
-            document.getElementById('text-overlay').style.display = 'none';
-        }
-
-        // 風向きを角度から方位に変換
         function getWindDirection(degree) {
-            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-            return directions[Math.round(degree / 45) % 8];
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            return dirs[Math.round(degree / 45) % 8];
         }
-
-        // 天気コードの簡易変換（WMO Weather interpretation codes）
         function getWeatherCondition(code) {
             if (code === 0) return 'CLEAR';
-            if (code >= 1 && code <= 3) return 'CLOUDY';
-            if (code >= 45 && code <= 48) return 'FOG';
-            if (code >= 51 && code <= 67) return 'RAIN';
-            if (code >= 71 && code <= 77) return 'SNOW';
+            if (code <= 3) return 'CLOUDY';
+            if (code <= 48) return 'FOG';
+            if (code <= 67) return 'RAIN';
+            if (code <= 77) return 'SNOW';
             if (code >= 95) return 'THUNDERSTORM';
             return 'UNKNOWN';
         }
-
-        // 天気の取得と表示
-        function showWeather() {
-            if (!navigator.geolocation) {
-                alert("このブラウザは位置情報に対応していません。");
-                return;
-            }
-
-            // UIを一時的に更新
-            const overlay = document.getElementById('weather-overlay');
-            overlay.style.display = 'block';
-            document.getElementById('weather-cond').innerText = "FETCHING...";
-            document.getElementById('weather-temp').innerText = "TEMP: -- °C";
-            document.getElementById('weather-wind').innerText = "WIND: --";
-
-            navigator.geolocation.getCurrentPosition(async (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-
+        function fetchWeather() {
+            if (!navigator.geolocation) { alert("Geolocation not supported."); return false; }
+            document.getElementById('weather-cond').innerText = "COND: FETCHING...";
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude; const lon = pos.coords.longitude;
                 try {
-                    // Open-Meteo API（登録不要・無料）を使用して天気を取得
-                    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
-                    const data = await response.json();
-                    
+                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+                    const data = await res.json();
                     const cw = data.current_weather;
-                    
-                    const condition = getWeatherCondition(cw.weathercode);
-                    const temp = cw.temperature;
-                    const windSpeed = cw.windspeed;
-                    const windDir = getWindDirection(cw.winddirection);
+                    document.getElementById('weather-cond').innerText = `COND: ${getWeatherCondition(cw.weathercode)}`;
+                    document.getElementById('weather-temp').innerText = `TEMP: ${cw.temperature} °C`;
+                    document.getElementById('weather-wind').innerText = `WIND: ${getWindDirection(cw.winddirection)} / ${cw.windspeed} km/h`;
+                } catch (e) { document.getElementById('weather-cond').innerText = "COND: ERROR"; }
+            });
+            return true;
+        }
 
-                    // 3行に分けて表示
-                    document.getElementById('weather-cond').innerText = `COND: ${condition}`;
-                    document.getElementById('weather-temp').innerText = `TEMP: ${temp} °C`;
-                    document.getElementById('weather-wind').innerText = `WIND: ${windDir} / ${windSpeed} km/h`;
-                    
-                } catch (error) {
-                    alert('天気情報の取得に失敗しました。');
-                    hideWeather();
+        // ==========================================
+        // P2P ハンドシェイク & ストリーミングロジック
+        // ==========================================
+        let peer = null;
+        let localStream = null;
+
+        function initBroadcast() {
+            document.getElementById('mode-selection').style.display = 'none';
+            document.getElementById('broadcast-mode').style.display = 'flex';
+            resizePreview();
+
+            const hostId = 'wrc-' + Math.random().toString(36).substr(2, 6);
+            peer = new Peer(hostId);
+
+            peer.on('open', (id) => {
+                document.getElementById('my-peer-id').innerText = id;
+            });
+
+            // 1. 視聴者からのハンドシェイク（データ接続）を待ち受ける
+            peer.on('connection', (conn) => {
+                conn.on('data', (data) => {
+                    if (data === 'HELLO_HOST') {
+                        console.log("視聴者からの接続を確認しました");
+                        conn.send('ACK_VIEWER'); // ハンドシェイク応答
+                    }
+                });
+            });
+
+            // 2. ハンドシェイク完了後のメディア要求に応答する
+            peer.on('call', (call) => {
+                if (localStream) {
+                    call.answer(localStream);
+                    document.getElementById('p2p-status').innerText = "Viewer Connected!";
+                    document.getElementById('p2p-status').style.color = "yellow";
+                } else {
+                    alert("視聴者がアクセスしましたが、キャプチャが開始されていません。");
                 }
-            }, (error) => {
-                alert('位置情報の取得が許可されませんでした。');
-                hideWeather();
             });
         }
 
-        function hideWeather() {
-            document.getElementById('weather-overlay').style.display = 'none';
+        async function startScreenCapture() {
+            try {
+                localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+                    audio: false
+                });
+                document.getElementById('p2p-status').innerText = "Capture active. Waiting for viewers...";
+                document.getElementById('p2p-status').style.color = "#4CAF50";
+
+                localStream.getVideoTracks()[0].onended = () => {
+                    document.getElementById('p2p-status').innerText = "Capture stopped.";
+                    document.getElementById('p2p-status').style.color = "red";
+                    localStream = null;
+                };
+            } catch (err) {
+                console.error("Capture Error:", err);
+            }
+        }
+
+        function initViewer() {
+            document.getElementById('mode-selection').style.display = 'none';
+            document.getElementById('viewer-mode').style.display = 'flex';
+            peer = new Peer();
+        }
+
+        function connectToHost() {
+            const hostId = document.getElementById('host-id-input').value.trim();
+            if (!hostId) return;
+
+            // 1. ハンドシェイク（データ接続）の開始
+            const conn = peer.connect(hostId);
+            conn.on('open', () => {
+                console.log("ホストへハンドシェイクを送信");
+                conn.send('HELLO_HOST');
+            });
+
+            // 2. ホストからの応答を受け取ってから映像を要求する
+            conn.on('data', (data) => {
+                if (data === 'ACK_VIEWER') {
+                    console.log("ハンドシェイク成功。映像ストリームを要求します。");
+                    const emptyStream = new MediaStream();
+                    const call = peer.call(hostId, emptyStream);
+
+                    call.on('stream', (remoteStream) => {
+                        // 余計なUIを完全に消し、フルスクリーンで映像のみを表示
+                        document.getElementById('viewer-ui').style.display = 'none';
+                        const video = document.getElementById('viewer-video');
+                        video.style.display = 'block';
+                        video.srcObject = remoteStream;
+                    });
+                }
+            });
+
+            conn.on('error', (err) => {
+                alert("接続エラー: IDを確認してください。");
+            });
         }
     </script>
 </body>
