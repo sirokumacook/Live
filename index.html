@@ -53,7 +53,7 @@
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; }
 
-        /* 動画が止まるのを防ぐため、ある程度のサイズを持たせてほぼ透明にする */
+        /* 音声をミキサーに送るため muted を完全に削除 */
         .hidden-media {
             position: absolute; width: 320px; height: 180px; opacity: 0.001;
             pointer-events: none; z-index: -100; top: 0; left: 0;
@@ -66,7 +66,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
-        <div id="version-text">VER 3.2.0 (FPS CONTROL & VIDEO FIX)</div>
+        <div id="version-text">VER 4.0.0 (AUDIO & CONNECTIVITY FIX)</div>
     </div>
 
     <div id="viewer-mode">
@@ -149,9 +149,9 @@
             </div>
         </div>
 
-        <video id="main-video" class="hidden-media" autoplay loop playsinline muted></video>
+        <video id="main-video" class="hidden-media" autoplay loop playsinline></video>
         <img id="main-img" class="hidden-media">
-        <video id="wipe-video" class="hidden-media" autoplay loop playsinline muted></video>
+        <video id="wipe-video" class="hidden-media" autoplay loop playsinline></video>
         <img id="wipe-img" class="hidden-media">
         <audio id="bgm-player" class="hidden-media" loop crossorigin="anonymous"></audio>
     </div>
@@ -177,10 +177,16 @@
         }
 
         // ==========================================
-        // 1. ファイル＆メディア制御
+        // 1. ファイル＆メディア制御 (AudioContextの再開処理追加)
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
+
+        function resumeAudio() {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
 
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
@@ -204,6 +210,7 @@
         }
 
         function switchMainMedia() {
+            resumeAudio();
             const select = document.getElementById('main-file-select');
             if(select.value === "") return;
             const file = mainFiles[select.value];
@@ -217,6 +224,7 @@
         }
 
         function switchWipeMedia() {
+            resumeAudio();
             const select = document.getElementById('wipe-file-select');
             if(select.value === "") return;
             const file = wipeFiles[select.value];
@@ -230,6 +238,7 @@
         }
 
         function playBgm() {
+            resumeAudio();
             const select = document.getElementById('bgm-select');
             if (select.value === "") return;
             const player = document.getElementById('bgm-player');
@@ -312,9 +321,8 @@
         function renderLoop(time) {
             requestAnimationFrame(renderLoop);
 
-            // FPS制限のロジック
             const elapsed = time - lastDrawTime;
-            if (elapsed < (1000 / targetFPS) - 1) return; // 指定FPSに合わせて描画をスキップ
+            if (elapsed < (1000 / targetFPS) - 1) return; 
             lastDrawTime = time;
 
             const dt = (time - lastUpdate) / 1000;
@@ -322,16 +330,12 @@
 
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1920, 1080);
             
-            // 1. メイン映像
             const mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             drawImageCover(ctx, mainMedia, 0, 0, 1920, 1080);
 
             const animSpeed = 2.5;
-
-            // WIPEとTEXTは同じ左下の定位置 (y=750) に配置
             const fixedX = 50, fixedY = 750;
 
-            // 2. WIPEの描画
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
@@ -348,7 +352,6 @@
                 ctx.restore();
             }
 
-            // 3. TEXT & WEATHERの描画 (WIPEと同じ座標)
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
                 else if(infoState.status === 'OUT') { 
@@ -389,18 +392,15 @@
                 ctx.restore();
             }
 
-            // 4. SCHEDULE (カウントダウン付き) の描画 (一番下・中央)
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
 
-                // UIの幅と高さを調整して美しく
                 const sw = 1150, sh = 130;
                 const sx = (1920 - sw) / 2;
-                const sy = 1080 - sh; // 1番下にくっつける
+                const sy = 1080 - sh; 
                 const blockX = sx - sw + (sw * 2) * scheduleState.progress;
 
-                // カウントダウン計算
                 const now = new Date();
                 let targetH = 0, targetM = 0;
                 if (scheduleState.time) {
@@ -419,127 +419,18 @@
 
                 ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
                 if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
-                    // 背景パネル
                     ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(sx, sy, sw, sh);
                     ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6);
 
-                    // 左側: カウントダウン (HH:MM:SS) 大きく配置
                     ctx.fillStyle = '#fff';
                     ctx.font = "bold 90px WRCCleanBold";
                     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
                     ctx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
 
-                    // 区切り線
                     ctx.fillStyle = 'rgba(255,255,255,0.3)';
                     ctx.fillRect(sx + 440, sy + 25, 2, sh - 50);
 
-                    // 右側上: COMING UP NEXT
                     ctx.fillStyle = '#ff5722'; 
                     ctx.font = "26px WRCCleanBold"; 
                     ctx.textBaseline = 'top';
                     ctx.fillText("COMING UP NEXT", sx + 470, sy + 30);
-
-                    // 右側下: LOCAL と スケジュール名
-                    ctx.fillStyle = '#ff5722'; 
-                    ctx.font = "40px WRCCleanBold";
-                    ctx.fillText("LOCAL", sx + 470, sy + 70);
-                    const localWidth = ctx.measureText("LOCAL ").width;
-                    
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 470 + localWidth, sy + 70);
-                }
-                if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, sy, sw, sh); }
-                ctx.restore();
-            }
-        }
-
-        // ==========================================
-        // 4. P2P WebRTC & Audio Mixer
-        // ==========================================
-        let peer = null;
-        let mixedStream = null;
-        let audioCtx = null;
-
-        function initAudioMixer() {
-            if(audioCtx) return;
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-            const dest = audioCtx.createMediaStreamDestination();
-
-            const mainVideo = document.getElementById('main-video');
-            const wipeVideo = document.getElementById('wipe-video');
-            const bgmPlayer = document.getElementById('bgm-player');
-            
-            const src1 = audioCtx.createMediaElementSource(mainVideo);
-            const src2 = audioCtx.createMediaElementSource(bgmPlayer);
-            const src3 = audioCtx.createMediaElementSource(wipeVideo);
-            
-            // ルーティング（配信とローカルの両方に音を出す）
-            src1.connect(dest); src1.connect(audioCtx.destination);
-            src2.connect(dest); src2.connect(audioCtx.destination);
-            src3.connect(dest); src3.connect(audioCtx.destination);
-
-            return dest.stream.getAudioTracks()[0];
-        }
-
-        async function initBroadcast() {
-            fetchWeatherInBackground();
-
-            document.getElementById('mode-selection').style.display = 'none';
-            document.getElementById('broadcast-mode').style.display = 'flex';
-            
-            const mixedAudioTrack = initAudioMixer();
-
-            // P2P送信用のストリーム生成 (ベースは最大滑らかさの60FPSで生成)
-            const canvasStream = canvas.captureStream(60);
-            const videoTrack = canvasStream.getVideoTracks()[0];
-            mixedStream = new MediaStream([videoTrack, mixedAudioTrack]);
-
-            const hostId = Math.floor(1000 + Math.random() * 9000).toString();
-            peer = new Peer(hostId);
-            peer.on('open', (id) => { document.getElementById('my-peer-id').innerText = id; });
-
-            peer.on('connection', (conn) => {
-                conn.on('data', (data) => {
-                    if (data && data.type === 'HELLO_HOST') {
-                        document.getElementById('p2p-status').innerText = "Viewer Connected!";
-                        document.getElementById('p2p-status').style.color = "yellow";
-                        peer.call(data.viewerId, mixedStream);
-                    }
-                });
-            });
-
-            document.fonts.ready.then(() => { requestAnimationFrame(renderLoop); });
-        }
-
-        function initViewer() {
-            document.getElementById('mode-selection').style.display = 'none';
-            document.getElementById('viewer-mode').style.display = 'flex';
-            
-            peer = new Peer();
-            peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
-            
-            peer.on('call', (call) => {
-                document.getElementById('viewer-status-text').innerText = "Receiving P2P Stream...";
-                call.answer();
-                call.on('stream', (remoteStream) => {
-                    document.getElementById('viewer-ui').style.display = 'none';
-                    const video = document.getElementById('viewer-video');
-                    video.style.display = 'block';
-                    video.srcObject = remoteStream;
-                    document.getElementById('unmute-btn').style.display = 'block';
-                });
-            });
-        }
-
-        function connectToHost() {
-            const hostId = document.getElementById('host-id-input').value.trim();
-            if (!hostId || hostId.length !== 4) return alert("4桁のIDを入力してください");
-            document.getElementById('viewer-status-text').innerText = "Connecting...";
-            const conn = peer.connect(hostId);
-            conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            conn.on('error', () => { alert("接続エラー"); });
-        }
-    </script>
-</body>
-</html>
