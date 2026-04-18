@@ -18,23 +18,16 @@
             --text-main: #e6f1ff;
         }
 
-        * {
-            box-sizing: border-box;
-            font-family: 'WRCCleanBold', sans-serif;
-            text-transform: uppercase;
-        }
-
-        body {
-            margin: 0; padding: 0; background-color: var(--wrc-navy-dark);
-            color: var(--text-main); overflow: hidden;
-        }
+        * { box-sizing: border-box; font-family: 'WRCCleanBold', sans-serif; text-transform: uppercase; }
+        body { margin: 0; padding: 0; background-color: var(--wrc-navy-dark); color: var(--text-main); overflow: hidden; }
 
         /* ----- モード選択画面 ----- */
         #mode-selection {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; background: radial-gradient(circle, var(--wrc-navy), var(--wrc-navy-dark));
+            height: 100vh; background: radial-gradient(circle, var(--wrc-navy), var(--wrc-navy-dark)); position: relative;
         }
-
+        #version-text { position: absolute; bottom: 15px; right: 25px; color: rgba(255, 255, 255, 0.3); font-size: 14px; letter-spacing: 2px; }
+        
         .btn {
             background-color: transparent; color: var(--wrc-orange); border: 2px solid var(--wrc-orange);
             padding: 15px 40px; font-size: 24px; margin: 10px; cursor: pointer; transition: all 0.3s ease;
@@ -47,131 +40,41 @@
             align-items: center; justify-content: center; background-color: #000;
         }
         #viewer-ui {
-            z-index: 100; position: absolute; background: var(--wrc-navy);
-            padding: 30px; border: 2px solid var(--wrc-orange); text-align: center;
+            z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center;
         }
-        #viewer-video {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: contain; display: none;
-        }
+        #viewer-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
         input[type="text"] {
-            padding: 10px; font-size: 24px; background: var(--wrc-navy-dark);
-            border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px;
-            width: 200px; text-align: center; letter-spacing: 5px;
+            padding: 10px; font-size: 24px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 200px; text-align: center; letter-spacing: 5px;
         }
         #viewer-status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
         /* ----- 放送モード画面 ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; }
-
-        #preview-wrapper {
-            flex: 1; background-color: #000; position: relative; overflow: hidden;
+        #broadcast-info {
+            position: absolute; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.7);
+            padding: 10px; font-size: 18px; color: yellow; border: 2px solid yellow; letter-spacing: 2px;
         }
-        #preview-area {
-            width: 1920px; height: 1080px; position: absolute;
-            top: 50%; left: 50%; transform-origin: center center; background-color: #111;
+
+        #preview-wrapper { flex: 1; background-color: #000; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        
+        /* 画面共有を使わず、このCanvasを映像ストリームに変換してP2Pで送ります */
+        #composite-canvas {
+            background-color: #111;
+            /* ウィンドウサイズに合わせて自動縮小 */
+            max-width: 100%; max-height: 100%;
+            object-fit: contain;
         }
 
         #controls {
-            background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange);
-            padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
+            background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
         }
-
-        .control-group {
-            background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3);
-            padding: 12px; min-width: 250px;
-        }
-        .control-group h3 {
-            color: var(--wrc-orange); margin-top: 0; font-size: 14px;
-            border-bottom: 1px solid var(--wrc-orange); padding-bottom: 5px; margin-bottom: 10px;
-        }
-
-        select.file-select {
-            width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy);
-            color: white; border: 1px solid var(--wrc-orange); font-family: monospace;
-        }
-
-        #main-media-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-        #main-media-container video, #main-media-container img { width: 100%; height: 100%; object-fit: cover; }
-
-        /* 左下オーバーレイコンテナ (ワイプ・天気・テキストが排他で表示される) */
-        #bottom-left-overlays {
-            position: absolute; bottom: 30px; left: 30px;
-            width: 600px; height: 300px;
-            z-index: 10;
-        }
-        
-        /* トランジション共通 */
-        .reveal-wrapper {
-            position: absolute; bottom: 0; left: 0;
-            overflow: hidden; visibility: hidden; width: max-content;
-        }
-        .reveal-wrapper.is-visible { visibility: visible; }
-        .reveal-content { opacity: 0; }
-        .reveal-wrapper.is-visible .reveal-content { opacity: 1; }
-
-        .reveal-blocker {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--wrc-orange); transform: translateX(-101%); z-index: 20;
-        }
-
-        .reveal-wrapper.anim-in .reveal-blocker { animation: slide-blocker 0.6s cubic-bezier(0.8, 0, 0.2, 1) forwards; }
-        .reveal-wrapper.anim-in .reveal-content { animation: show-content 0.6s forwards; }
-        .reveal-wrapper.anim-out .reveal-blocker { animation: slide-blocker-out 0.6s cubic-bezier(0.8, 0, 0.2, 1) forwards; }
-        .reveal-wrapper.anim-out .reveal-content { animation: hide-content 0.6s forwards; }
-
-        @keyframes slide-blocker { 0% { transform: translateX(-101%); } 50% { transform: translateX(0); } 100% { transform: translateX(101%); } }
-        @keyframes show-content { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
-        @keyframes slide-blocker-out { 0% { transform: translateX(101%); } 50% { transform: translateX(0); } 100% { transform: translateX(-101%); } }
-        @keyframes hide-content { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-
-        /* 各パーツのデザイン */
-        #wipe-container {
-            width: 380px; aspect-ratio: 16/9; background-color: #000; 
-            border: 3px solid var(--wrc-orange); box-shadow: 5px 5px 20px rgba(0,0,0,0.8);
-        }
-        #wipe-container video, #wipe-container img { width: 100%; height: 100%; object-fit: cover; }
-
-        .info-panel {
-            background-color: var(--wrc-navy); border-left: 6px solid var(--wrc-orange);
-            padding: 15px 25px; font-size: 24px; letter-spacing: 1px; line-height: 1.3;
-            box-shadow: 5px 5px 20px rgba(0,0,0,0.8);
-        }
-        #weather-overlay .header { color: var(--wrc-orange); font-size: 20px; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.2); }
-        
-        /* テキストの巨大化 */
-        #text-overlay {
-            font-size: 48px; /* 文字を大きく */
-            max-width: 800px;
-            padding: 20px 30px;
-        }
-
-        /* WRC風スピードメーター (右下独立) */
-        #speed-wrapper {
-            position: absolute; bottom: 30px; right: 30px; left: auto;
-            transform: skewX(-10deg); /* WRC特有の少し斜体のかかったUI */
-        }
-        #speed-overlay {
-            background-color: rgba(2, 12, 27, 0.9);
-            border-right: 8px solid var(--wrc-orange);
-            padding: 10px 30px;
-            box-shadow: -5px 5px 20px rgba(0,0,0,0.8);
-            display: flex; align-items: baseline; gap: 10px;
-        }
-        #speed-value {
-            font-size: 72px; color: white; font-weight: bold;
-            font-variant-numeric: tabular-nums;
-        }
-        .speed-unit {
-            font-size: 24px; color: var(--wrc-orange); font-weight: bold;
-        }
-
-        #broadcast-info {
-            position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.7); padding: 10px; font-size: 18px; color: yellow;
-            border: 2px solid yellow; letter-spacing: 2px;
-        }
+        .control-group { background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3); padding: 12px; min-width: 250px; }
+        .control-group h3 { color: var(--wrc-orange); margin-top: 0; font-size: 14px; border-bottom: 1px solid var(--wrc-orange); padding-bottom: 5px; margin-bottom: 10px; }
+        select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; }
+
+        /* 内部処理用（非表示） */
+        .hidden-media { display: none; }
     </style>
 </head>
 <body>
@@ -180,6 +83,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
+        <div id="version-text">VER 2.0.0 (CANVAS ENGINE)</div>
     </div>
 
     <div id="viewer-mode">
@@ -196,74 +100,31 @@
 
     <div id="broadcast-mode">
         <div id="broadcast-info">
-            ID: <span id="my-peer-id">----</span> | <span id="p2p-status" style="font-size:14px;">Starting...</span>
+            ID: <span id="my-peer-id">----</span> | <span id="p2p-status" style="font-size:14px; color:#4CAF50;">LIVE (No viewers)</span>
         </div>
 
         <div id="preview-wrapper">
-            <div id="preview-area">
-                <div id="main-media-container"></div>
-                
-                <div id="bottom-left-overlays">
-                    <div id="wipe-wrapper" class="reveal-wrapper">
-                        <div class="reveal-blocker"></div>
-                        <div id="wipe-container" class="reveal-content"></div>
-                    </div>
-                    <div id="weather-wrapper" class="reveal-wrapper">
-                        <div class="reveal-blocker"></div>
-                        <div id="weather-overlay" class="reveal-content info-panel">
-                            <div class="header">WEATHER CONDITION</div>
-                            <div id="weather-cond">COND: --</div>
-                            <div id="weather-temp">TEMP: -- °C</div>
-                            <div id="weather-wind">WIND: -- / -- km/h</div>
-                        </div>
-                    </div>
-                    <div id="text-wrapper" class="reveal-wrapper">
-                        <div class="reveal-blocker"></div>
-                        <div id="text-overlay" class="reveal-content info-panel"></div>
-                    </div>
-                </div>
-
-                <div id="speed-wrapper" class="reveal-wrapper">
-                    <div class="reveal-blocker"></div>
-                    <div id="speed-overlay" class="reveal-content">
-                        <span id="speed-value">124</span>
-                        <span class="speed-unit">KM/H</span>
-                    </div>
-                </div>
-            </div>
+            <canvas id="composite-canvas" width="1920" height="1080"></canvas>
         </div>
 
         <div id="controls">
             <div class="control-group">
                 <h3>MAIN MEDIA</h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
-                <select id="main-file-select" class="file-select" onchange="switchMainMedia()">
-                    <option value="">Select File...</option>
-                </select>
+                <select id="main-file-select" class="file-select" onchange="switchMainMedia()"><option value="">Select File...</option></select>
             </div>
             
             <div class="control-group">
-                <h3>WIPE / IMAGE (LEFT)</h3>
+                <h3>OVERLAYS (LEFT BOTTOM)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
-                <select id="wipe-file-select" class="file-select" onchange="switchWipeMedia()">
-                    <option value="">Select File...</option>
-                </select>
-                <div>
-                    <button class="btn btn-small" onclick="activateOverlay('wipe', showWipeMedia)">SHOW</button>
-                    <button class="btn btn-small" onclick="hideAllLeftOverlays()" style="border-color: gray; color: gray;">HIDE</button>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <h3>TEXT & WEATHER (LEFT)</h3>
+                <select id="wipe-file-select" class="file-select" onchange="if(this.value!=='') activateOverlay('wipe')"><option value="">Wipe File...</option></select>
+                
                 <input type="text" id="overlay-text-input" placeholder="TEXT..." style="width: 100%; font-size: 14px; margin-bottom: 5px;">
                 <div style="margin-bottom: 5px;">
-                    <button class="btn btn-small" onclick="activateOverlay('text', updateText)">TXT ON</button>
-                    <button class="btn btn-small" onclick="hideAllLeftOverlays()" style="border-color: gray; color: gray;">HIDE</button>
+                    <button class="btn btn-small" onclick="activateOverlay('text')">TXT ON</button>
+                    <button class="btn btn-small" onclick="activateOverlay('weather')">WTH ON</button>
                 </div>
-                <div>
-                    <button class="btn btn-small" onclick="activateOverlay('weather', fetchWeather)">WTH ON</button>
-                </div>
+                <div><button class="btn btn-small" onclick="hideOverlays()" style="border-color: gray; color: gray; width: 100%;">HIDE ALL OVERLAYS</button></div>
             </div>
 
             <div class="control-group" style="border-color: #ff9800;">
@@ -277,40 +138,27 @@
             <div class="control-group" style="border-color: #2196F3;">
                 <h3 style="color: #2196F3;">BGM AUDIO</h3>
                 <input type="file" id="bgm-file" accept="audio/*, .mp3, .wav, .m4a" multiple onchange="handleAudioFiles()" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
-                <select id="bgm-select" class="file-select">
-                    <option value="">Select Audio...</option>
-                </select>
+                <select id="bgm-select" class="file-select"><option value="">Select Audio...</option></select>
                 <div>
                     <button class="btn btn-small" onclick="playBgm()" style="border-color: #2196F3; color: #2196F3;">PLAY</button>
                     <button class="btn btn-small" onclick="stopBgm()" style="border-color: gray; color: gray;">STOP</button>
                 </div>
-                <audio id="bgm-player" loop></audio>
             </div>
         </div>
+
+        <video id="main-video" class="hidden-media" autoplay loop playsinline></video>
+        <img id="main-img" class="hidden-media">
+        <video id="wipe-video" class="hidden-media" autoplay loop playsinline muted></video>
+        <img id="wipe-img" class="hidden-media">
+        <audio id="bgm-player" class="hidden-media" loop></audio>
     </div>
 
     <script>
-        function resizePreview() {
-            const wrapper = document.getElementById('preview-wrapper');
-            const area = document.getElementById('preview-area');
-            if(!wrapper) return;
-            const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
-            area.style.transform = `translate(-50%, -50%) scale(${scale})`;
-        }
-        window.addEventListener('resize', resizePreview);
-
-        function createMediaElement(file) {
-            const fileURL = URL.createObjectURL(file);
-            let el;
-            if (file.type.startsWith('video/')) {
-                el = document.createElement('video'); el.src = fileURL; el.autoplay = true; el.loop = true; el.muted = true;
-            } else {
-                el = document.createElement('img'); el.src = fileURL;
-            }
-            return el;
-        }
-
+        // ==========================================
+        // 1. ファイルハンドリング＆メディア制御
+        // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
+        let isMainVideo = false, isWipeVideo = false;
 
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
@@ -319,160 +167,275 @@
             const files = Array.from(input.files);
             if (type === 'main') mainFiles = files; else wipeFiles = files;
             files.forEach((f, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = f.name; select.appendChild(opt); });
-            if(files.length > 0) { if(type === 'main') switchMainMedia(); if(type === 'wipe') switchWipeMedia(); } 
-            else select.innerHTML = '<option value="">Select File...</option>';
+            if(files.length > 0) { 
+                if(type === 'main') switchMainMedia(); 
+                if(type === 'wipe') { switchWipeMedia(); activateOverlay('wipe'); }
+            } else {
+                select.innerHTML = '<option value="">Select File...</option>';
+            }
         }
 
-        // MP3などの音声ファイル処理
         function handleAudioFiles() {
             const input = document.getElementById('bgm-file');
             const select = document.getElementById('bgm-select');
-            select.innerHTML = '';
-            bgmFiles = Array.from(input.files);
+            select.innerHTML = ''; bgmFiles = Array.from(input.files);
             bgmFiles.forEach((f, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = f.name; select.appendChild(opt); });
             if(bgmFiles.length === 0) select.innerHTML = '<option value="">Select Audio...</option>';
         }
 
-        function playBgm() {
-            const select = document.getElementById('bgm-select');
-            const player = document.getElementById('bgm-player');
-            if (select.value === "" || bgmFiles.length === 0) return;
-            player.src = URL.createObjectURL(bgmFiles[select.value]);
-            player.play();
-        }
-        function stopBgm() { document.getElementById('bgm-player').pause(); document.getElementById('bgm-player').currentTime = 0; }
-
         function switchMainMedia() {
             const select = document.getElementById('main-file-select');
             if(select.value === "") return;
-            const container = document.getElementById('main-media-container');
-            container.innerHTML = ''; container.appendChild(createMediaElement(mainFiles[select.value]));
+            const file = mainFiles[select.value];
+            const url = URL.createObjectURL(file);
+            if (file.type.startsWith('video/')) {
+                isMainVideo = true; const v = document.getElementById('main-video'); v.src = url; v.play();
+            } else {
+                isMainVideo = false; const i = document.getElementById('main-img'); i.src = url;
+            }
         }
+
         function switchWipeMedia() {
             const select = document.getElementById('wipe-file-select');
-            if(select.value === "") return false;
-            const container = document.getElementById('wipe-container');
-            container.innerHTML = ''; container.appendChild(createMediaElement(wipeFiles[select.value]));
-            return true;
-        }
-        function updateText() {
-            const text = document.getElementById('overlay-text-input').value;
-            if (!text) return false; document.getElementById('text-overlay').innerText = text; return true;
-        }
-
-        // --- 左下オーバーレイの排他制御 ---
-        const leftOverlayTypes = ['wipe', 'weather', 'text'];
-        
-        function activateOverlay(targetType, updateFn = null) {
-            leftOverlayTypes.forEach(type => {
-                if (type !== targetType) toggleOverlay(type + '-wrapper', false);
-            });
-            setTimeout(() => { toggleOverlay(targetType + '-wrapper', true, updateFn); }, 100);
-        }
-
-        function hideAllLeftOverlays() {
-            leftOverlayTypes.forEach(type => toggleOverlay(type + '-wrapper', false));
-        }
-
-        function toggleOverlay(wrapperId, show, updateFn = null) {
-            const wrapper = document.getElementById(wrapperId);
-            if (show) {
-                if (wrapper.classList.contains('is-visible')) { if (updateFn) updateFn(); return; }
-                if (updateFn && updateFn() === false) return;
-                wrapper.classList.remove('anim-out'); wrapper.classList.add('anim-in'); wrapper.classList.add('is-visible');
-                setTimeout(() => wrapper.classList.remove('anim-in'), 600);
+            if(select.value === "") return;
+            const file = wipeFiles[select.value];
+            const url = URL.createObjectURL(file);
+            if (file.type.startsWith('video/')) {
+                isWipeVideo = true; const v = document.getElementById('wipe-video'); v.src = url; v.play();
             } else {
-                if (!wrapper.classList.contains('is-visible')) return;
-                wrapper.classList.remove('anim-in'); wrapper.classList.add('anim-out');
-                setTimeout(() => { wrapper.classList.remove('is-visible'); wrapper.classList.remove('anim-out'); }, 600);
+                isWipeVideo = false; const i = document.getElementById('wipe-img'); i.src = url;
             }
         }
 
-        // --- スピードメーター制御 ---
-        let speedInterval = null;
-        function toggleSpeed(show) {
-            toggleOverlay('speed-wrapper', show);
-            if (show) {
-                let currentSpeed = 124; // 初期速度
-                if(speedInterval) clearInterval(speedInterval);
-                speedInterval = setInterval(() => {
-                    // ラリーっぽく -4 から +6 の範囲で激しく変動させる
-                    currentSpeed += Math.floor(Math.random() * 11) - 4;
-                    if(currentSpeed < 80) currentSpeed = 80;
-                    if(currentSpeed > 195) currentSpeed = 195;
-                    document.getElementById('speed-value').innerText = currentSpeed;
-                }, 150); // 細かく更新
-            } else {
-                if(speedInterval) clearInterval(speedInterval);
-            }
+        function playBgm() {
+            const select = document.getElementById('bgm-select');
+            if (select.value === "") return;
+            const player = document.getElementById('bgm-player');
+            player.src = URL.createObjectURL(bgmFiles[select.value]);
+            player.play();
         }
+        function stopBgm() { const p = document.getElementById('bgm-player'); p.pause(); p.currentTime = 0; }
 
-        function getWindDirection(deg) { const d = ['N','NE','E','SE','S','SW','W','NW']; return d[Math.round(deg/45)%8]; }
-        function getWeatherCondition(c) { if(c===0)return 'CLEAR'; if(c<=3)return 'CLOUDY'; if(c<=48)return 'FOG'; if(c<=67)return 'RAIN'; if(c<=77)return 'SNOW'; return 'STORM'; }
-        
+        // 天気API
+        let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
         function fetchWeather() {
-            if (!navigator.geolocation) return false;
-            document.getElementById('weather-cond').innerText = "COND: FETCHING...";
+            if (!navigator.geolocation) return;
+            weatherData.cond = "FETCHING...";
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 try {
                     const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current_weather=true`);
                     const cw = (await res.json()).current_weather;
-                    document.getElementById('weather-cond').innerText = `COND: ${getWeatherCondition(cw.weathercode)}`;
-                    document.getElementById('weather-temp').innerText = `TEMP: ${cw.temperature} °C`;
-                    document.getElementById('weather-wind').innerText = `WIND: ${getWindDirection(cw.winddirection)} / ${cw.windspeed} km/h`;
-                } catch(e) {}
+                    const c = cw.weathercode;
+                    let condStr = 'STORM';
+                    if(c===0) condStr='CLEAR'; else if(c<=3) condStr='CLOUDY'; else if(c<=48) condStr='FOG'; else if(c<=67) condStr='RAIN'; else if(c<=77) condStr='SNOW';
+                    const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+                    const dir = dirs[Math.round(cw.winddirection/45)%8];
+                    
+                    weatherData = { cond: condStr, temp: `${cw.temperature} °C`, wind: `${dir} / ${cw.windspeed} km/h` };
+                } catch(e) { weatherData.cond = "ERROR"; }
             });
-            return true;
         }
 
         // ==========================================
-        // P2P 配信・受信ロジック (自動キャプチャ付き)
+        // 2. キャンバス描画エンジン (HTML/CSSを使わない完全P2P用)
         // ==========================================
-        let peer = null;
-        let localStream = null;
+        const canvas = document.getElementById('composite-canvas');
+        const ctx = canvas.getContext('2d');
 
-        async function initBroadcast() {
-            // 先にキャプチャを要求する（ユーザーがボタンを押した直後なのでブラウザにブロックされない）
-            try {
-                localStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-                    audio: true // BGMも配信に乗せるためON
-                });
-            } catch (err) {
-                alert("画面キャプチャがキャンセルされたため、配信できません。リロードしてください。");
-                return;
+        // アニメーション状態管理
+        let overlayState = { active: null, next: null, progress: 0, status: 'HIDDEN' }; // status: HIDDEN, IN, VISIBLE, OUT
+        let speedState = { active: false, value: 124 };
+        let speedInterval = null;
+
+        function toggleSpeed(show) {
+            speedState.active = show;
+            if (show) {
+                if(speedInterval) clearInterval(speedInterval);
+                speedInterval = setInterval(() => {
+                    speedState.value += Math.floor(Math.random() * 11) - 4;
+                    if(speedState.value < 80) speedState.value = 80;
+                    if(speedState.value > 195) speedState.value = 195;
+                }, 150);
+            } else { if(speedInterval) clearInterval(speedInterval); }
+        }
+
+        function activateOverlay(type) {
+            if(type === 'weather') fetchWeather();
+            if(overlayState.status === 'HIDDEN') {
+                overlayState.active = type; overlayState.status = 'IN'; overlayState.progress = 0;
+            } else if(overlayState.status === 'VISIBLE' && overlayState.active !== type) {
+                overlayState.next = type; overlayState.status = 'OUT'; overlayState.progress = 1.0;
+            }
+        }
+
+        function hideOverlays() {
+            if(overlayState.status === 'VISIBLE') {
+                overlayState.next = null; overlayState.status = 'OUT'; overlayState.progress = 1.0;
+            }
+        }
+
+        function drawImageCover(ctx, img, x, y, w, h) {
+            const imgW = img.videoWidth || img.width; const imgH = img.videoHeight || img.height;
+            if(!imgW || !imgH) return;
+            const ratio = Math.max(w / imgW, h / imgH);
+            const drawW = imgW * ratio, drawH = imgH * ratio;
+            const offsetX = x + (w - drawW) / 2, offsetY = y + (h - drawH) / 2;
+            ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
+        }
+
+        // メインレンダリングループ
+        let lastTime = 0;
+        function renderLoop(time) {
+            const dt = (time - lastTime) / 1000; lastTime = time;
+
+            // 1. メイン映像の描画
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1920, 1080);
+            const mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
+            drawImageCover(ctx, mainMedia, 0, 0, 1920, 1080);
+
+            // 2. 左下オーバーレイのアニメーション処理と描画
+            const ox = 50, oy = 750, maxW = 800, maxH = 280;
+            
+            if (overlayState.status !== 'HIDDEN') {
+                // アニメーション進行計算
+                const speed = 2.5; // 速度
+                if (overlayState.status === 'IN') {
+                    overlayState.progress += dt * speed;
+                    if(overlayState.progress >= 1) { overlayState.progress = 1; overlayState.status = 'VISIBLE'; }
+                } else if (overlayState.status === 'OUT') {
+                    overlayState.progress -= dt * speed;
+                    if(overlayState.progress <= 0) {
+                        if(overlayState.next) { overlayState.active = overlayState.next; overlayState.next = null; overlayState.status = 'IN'; overlayState.progress = 0; }
+                        else { overlayState.status = 'HIDDEN'; }
+                    }
+                }
+
+                // 描画：要素の大きさを決定
+                let contentW = 480, contentH = 270;
+                let textStr = "";
+                if(overlayState.active === 'text') {
+                    textStr = document.getElementById('overlay-text-input').value || " ";
+                    ctx.font = "48px WRCCleanBold"; contentW = Math.min(ctx.measureText(textStr).width + 60, 1000); contentH = 100;
+                } else if(overlayState.active === 'weather') {
+                    contentW = 450; contentH = 180;
+                }
+
+                // オレンジブロックの座標計算 (スライドするアニメーション)
+                // IN: 0 -> 0.5 (左から覆う), VISIBLE: 中身表示, OUT: 0.5 -> 0 (右へ抜ける)
+                // 今回はシンプルに、progressに応じたブロック描画と、progress > 0.5 で中身描画
+                const blockX = ox - contentW + (contentW * 2) * overlayState.progress;
+
+                ctx.save();
+                // 枠内クリッピング
+                ctx.beginPath(); ctx.rect(ox, oy, contentW, contentH); ctx.clip();
+
+                // 中身の描画 (完全に覆われている/表示フェーズの時のみ)
+                if (overlayState.progress > 0.5 || overlayState.status === 'VISIBLE') {
+                    if (overlayState.active === 'wipe') {
+                        const wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                        drawImageCover(ctx, wipeMedia, ox, oy, contentW, contentH);
+                        ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(ox, oy, contentW, contentH);
+                    } else if (overlayState.active === 'text' || overlayState.active === 'weather') {
+                        ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(ox, oy, contentW, contentH);
+                        ctx.fillStyle = '#ff5722'; ctx.fillRect(ox, oy, 10, contentH); // 左オレンジ線
+                        
+                        ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                        if (overlayState.active === 'text') {
+                            ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, ox + 30, oy + 25);
+                        } else {
+                            ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", ox + 30, oy + 20);
+                            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(ox + 30, oy + 55, contentW - 50, 2);
+                            ctx.fillStyle = '#fff'; ctx.font = "32px WRCCleanBold";
+                            ctx.fillText(`COND: ${weatherData.cond}`, ox + 30, oy + 70);
+                            ctx.fillText(`TEMP: ${weatherData.temp}`, ox + 30, oy + 105);
+                            ctx.fillText(`WIND: ${weatherData.wind}`, ox + 30, oy + 140);
+                        }
+                    }
+                }
+
+                // オレンジの帯を描画 (中身の上から覆い被さる)
+                if(overlayState.status === 'IN' || overlayState.status === 'OUT') {
+                    ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, oy, contentW, contentH);
+                }
+                ctx.restore();
             }
 
-            // キャプチャ成功後、画面を切り替えてPeerJSを準備
+            // 3. 右下スピードメーター
+            if (speedState.active) {
+                ctx.save();
+                ctx.translate(1600, 950);
+                ctx.transform(1, 0, -0.15, 1, 0, 0); // 斜体(Skew)エフェクト
+                ctx.fillStyle = 'rgba(2, 12, 27, 0.9)'; ctx.fillRect(0, 0, 260, 100);
+                ctx.fillStyle = '#ff5722'; ctx.fillRect(250, 0, 10, 100); // 右オレンジ線
+                ctx.fillStyle = '#fff'; ctx.font = "72px WRCCleanBold"; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+                ctx.fillText(speedState.value, 160, 15);
+                ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.textAlign = 'left';
+                ctx.fillText("KM/H", 170, 50);
+                ctx.restore();
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        // ==========================================
+        // 3. P2P WebRTC & Audio Mixer 処理 (画面共有を完全に排除)
+        // ==========================================
+        let peer = null;
+        let mixedStream = null;
+        let audioCtx = null;
+
+        function initAudioMixer() {
+            if(audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            const dest = audioCtx.createMediaStreamDestination();
+
+            // 動画の音とBGMをミックスする
+            const mainVideo = document.getElementById('main-video');
+            const bgmPlayer = document.getElementById('bgm-player');
+            
+            const src1 = audioCtx.createMediaElementSource(mainVideo);
+            const src2 = audioCtx.createMediaElementSource(bgmPlayer);
+            
+            src1.connect(dest); src1.connect(audioCtx.destination); // 配信先とローカル両方に音を出す
+            src2.connect(dest); src2.connect(audioCtx.destination);
+
+            return dest.stream.getAudioTracks()[0]; // ミックスされた音声トラック
+        }
+
+        async function initBroadcast() {
             document.getElementById('mode-selection').style.display = 'none';
             document.getElementById('broadcast-mode').style.display = 'flex';
-            resizePreview();
             
-            document.getElementById('p2p-status').innerText = "Ready. Waiting for viewers.";
-            document.getElementById('p2p-status').style.color = "#4CAF50";
+            // Web Audio APIの初期化（ユーザーアクション直後に行う必要がある）
+            const mixedAudioTrack = initAudioMixer();
 
-            localStream.getVideoTracks()[0].onended = () => {
-                document.getElementById('p2p-status').innerText = "Capture stopped.";
-                document.getElementById('p2p-status').style.color = "red";
-                localStream = null;
-            };
+            // Canvasから映像ストリームを取得 (30 FPS)
+            const canvasStream = canvas.captureStream(30);
+            const videoTrack = canvasStream.getVideoTracks()[0];
 
+            // 映像トラックとミキシングした音声トラックを結合して最終ストリームを作成！
+            mixedStream = new MediaStream([videoTrack, mixedAudioTrack]);
+
+            // P2Pの起動
             const hostId = Math.floor(1000 + Math.random() * 9000).toString();
             peer = new Peer(hostId);
-
             peer.on('open', (id) => { document.getElementById('my-peer-id').innerText = id; });
 
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
                     if (data && data.type === 'HELLO_HOST') {
-                        if (localStream) {
-                            document.getElementById('p2p-status').innerText = "Connecting Viewer...";
-                            peer.call(data.viewerId, localStream);
-                            setTimeout(() => { document.getElementById('p2p-status').innerText = "LIVE (Viewer Connected)"; }, 500);
-                        }
+                        document.getElementById('p2p-status').innerText = "Viewer Connected!";
+                        document.getElementById('p2p-status').style.color = "yellow";
+                        // 生成済みの内部ストリームをそのまま通話で送信
+                        peer.call(data.viewerId, mixedStream);
                     }
                 });
             });
+
+            // フォントのロードを待ってからレンダリング開始
+            document.fonts.ready.then(() => { requestAnimationFrame(renderLoop); });
         }
 
         function initViewer() {
@@ -483,7 +446,7 @@
             peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
             
             peer.on('call', (call) => {
-                document.getElementById('viewer-status-text').innerText = "Receiving Stream...";
+                document.getElementById('viewer-status-text').innerText = "Receiving P2P Stream...";
                 call.answer();
                 call.on('stream', (remoteStream) => {
                     document.getElementById('viewer-ui').style.display = 'none';
@@ -497,18 +460,10 @@
         function connectToHost() {
             const hostId = document.getElementById('host-id-input').value.trim();
             if (!hostId || hostId.length !== 4) return alert("4桁のIDを入力してください");
-
-            document.getElementById('viewer-status-text').innerText = "Connecting to Host...";
-            
+            document.getElementById('viewer-status-text').innerText = "Connecting...";
             const conn = peer.connect(hostId);
-            conn.on('open', () => {
-                document.getElementById('viewer-status-text').innerText = "Requesting Video...";
-                conn.send({ type: 'HELLO_HOST', viewerId: peer.id });
-            });
-            conn.on('error', () => {
-                document.getElementById('viewer-status-text').innerText = "Error: Cannot connect.";
-                alert("接続に失敗しました。IDが間違っているか、ホストが存在しません。");
-            });
+            conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
+            conn.on('error', () => { alert("接続エラー"); });
         }
     </script>
 </body>
