@@ -26,7 +26,6 @@
             align-items: center; justify-content: center; background-color: #000; position: relative;
         }
         #viewer-ui { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
-        /* controls 属性をHTML側に付与し、デバイスの標準プレイヤーを有効化 */
         #viewer-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
         
         #unmute-btn {
@@ -54,7 +53,7 @@
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; }
 
-        /* 動画が止まらないよう、不透明度をギリギリ残しつつサイズを持たせる */
+        /* 音声を再生させるため muted は外すが、画面から隠す */
         .hidden-media {
             position: absolute; width: 10px; height: 10px; opacity: 0.01;
             pointer-events: none; z-index: -1; top: 0; left: 0;
@@ -67,7 +66,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
-        <div id="version-text">VER 3.0.0 (SCHEDULE & NATIVE PLAYER)</div>
+        <div id="version-text">VER 3.1.0 (COUNTDOWN & AUDIO FIX)</div>
     </div>
 
     <div id="viewer-mode">
@@ -100,7 +99,7 @@
             </div>
             
             <div class="control-group">
-                <h3>WIPE (LEFT MIDDLE)</h3>
+                <h3>WIPE (LEFT BOTTOM)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
                 <select id="wipe-file-select" class="file-select" onchange="if(this.value!=='') toggleWipe(true)"><option value="">Wipe File...</option></select>
                 <div>
@@ -110,7 +109,7 @@
             </div>
             
             <div class="control-group">
-                <h3>TEXT & WEATHER (LEFT BTM)</h3>
+                <h3>TEXT & WEATHER (LEFT BOTTOM)</h3>
                 <input type="text" id="overlay-text-input" placeholder="TEXT..." style="width: 100%; font-size: 14px; margin-bottom: 5px;">
                 <div style="margin-bottom: 5px;">
                     <button class="btn btn-small" onclick="activateInfo('text')">TXT ON</button>
@@ -120,7 +119,7 @@
             </div>
 
             <div class="control-group" style="border-color: #9c27b0;">
-                <h3 style="color: #9c27b0;">SCHEDULE / COMING UP</h3>
+                <h3 style="color: #9c27b0;">COMING UP NEXT (BOTTOM CENTER)</h3>
                 <div style="display: flex; gap: 5px; margin-bottom: 5px;">
                     <input type="time" id="schedule-time" style="width: 40%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px; font-family: monospace;">
                     <input type="text" id="schedule-text" placeholder="STAGE..." style="width: 60%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px;">
@@ -128,14 +127,6 @@
                 <div>
                     <button class="btn btn-small" onclick="toggleSchedule(true)" style="border-color: #9c27b0; color: #9c27b0;">SHOW</button>
                     <button class="btn btn-small" onclick="toggleSchedule(false)" style="border-color: gray; color: gray;">HIDE</button>
-                </div>
-            </div>
-
-            <div class="control-group" style="border-color: #ff9800;">
-                <h3 style="color: #ff9800;">GPS SPEED</h3>
-                <div style="margin-top: 10px;">
-                    <button class="btn btn-small" onclick="toggleSpeed(true)" style="border-color: #ff9800; color: #ff9800;">ON</button>
-                    <button class="btn btn-small" onclick="toggleSpeed(false)" style="border-color: gray; color: gray;">OFF</button>
                 </div>
             </div>
 
@@ -150,9 +141,9 @@
             </div>
         </div>
 
-        <video id="main-video" class="hidden-media" autoplay loop playsinline muted></video>
+        <video id="main-video" class="hidden-media" autoplay loop playsinline></video>
         <img id="main-img" class="hidden-media">
-        <video id="wipe-video" class="hidden-media" autoplay loop playsinline muted></video>
+        <video id="wipe-video" class="hidden-media" autoplay loop playsinline></video>
         <img id="wipe-img" class="hidden-media">
         <audio id="bgm-player" class="hidden-media" loop></audio>
     </div>
@@ -193,7 +184,8 @@
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; 
                 const v = document.getElementById('main-video'); 
-                v.src = url; v.play();
+                v.src = url; 
+                v.play().catch(e=>console.warn("Main Play Error", e));
             } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
@@ -205,7 +197,8 @@
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; 
                 const v = document.getElementById('wipe-video'); 
-                v.src = url; v.play();
+                v.src = url; 
+                v.play().catch(e=>console.warn("Wipe Play Error", e));
             } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
         }
 
@@ -214,7 +207,7 @@
             if (select.value === "") return;
             const player = document.getElementById('bgm-player');
             player.src = URL.createObjectURL(bgmFiles[select.value]);
-            player.play();
+            player.play().catch(e=>console.warn("BGM Play Error", e));
         }
         function stopBgm() { const p = document.getElementById('bgm-player'); p.pause(); p.currentTime = 0; }
 
@@ -237,24 +230,17 @@
                 } catch(e) {}
             }, () => {}, { timeout: 10000 });
         }
-        // 1分ごとに裏で検索
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 3. キャンバス描画エンジン＆アニメーション管理
+        // 3. キャンバス描画エンジン
         // ==========================================
         const canvas = document.getElementById('composite-canvas');
         const ctx = canvas.getContext('2d');
 
-        // 各種状態の完全分離
         let wipeState = { status: 'HIDDEN', progress: 0 };
-        let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; // Text / Weather用
+        let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; 
         let scheduleState = { status: 'HIDDEN', progress: 0, time: '', text: '' };
-        let speedState = { active: false, value: 0 };
-        
-        let geoWatchId = null;
-        let speedInterval = null;
-        let realGpsSpeed = 0;
 
         function toggleWipe(show) {
             if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
@@ -282,31 +268,6 @@
             }
         }
 
-        function toggleSpeed(show) {
-            speedState.active = show;
-            if (show) {
-                // GPS取得
-                if (navigator.geolocation) {
-                    geoWatchId = navigator.geolocation.watchPosition((pos) => {
-                        let s = pos.coords.speed;
-                        realGpsSpeed = (s !== null && s > 0) ? Math.round(s * 3.6) : 0;
-                    }, null, { enableHighAccuracy: true });
-                }
-                // 描画用の数値を常に変動させる（0なら擬似的に動かす）
-                speedInterval = setInterval(() => {
-                    if (realGpsSpeed > 0) {
-                        speedState.value = realGpsSpeed;
-                    } else {
-                        // 止まっている時は120km/h前後で激しく動かしてWRC感を出す
-                        speedState.value = 124 + Math.floor(Math.random() * 11) - 5;
-                    }
-                }, 150);
-            } else {
-                if (geoWatchId !== null) { navigator.geolocation.clearWatch(geoWatchId); geoWatchId = null; }
-                if (speedInterval) { clearInterval(speedInterval); speedInterval = null; }
-            }
-        }
-
         function drawImageCover(ctx, img, x, y, w, h) {
             const imgW = img.videoWidth || img.naturalWidth || img.width; 
             const imgH = img.videoHeight || img.naturalHeight || img.height;
@@ -329,24 +290,27 @@
 
             const animSpeed = 2.5;
 
-            // 2. WIPEの描画 (左側、少し上 y=520)
+            // WIPEとTEXTは同じ左下の定位置 (y=750) に配置
+            const fixedX = 50, fixedY = 750;
+
+            // 2. WIPEの描画
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
                 
-                const wx = 50, wy = 520, ww = 480, wh = 270;
-                const blockX = wx - ww + (ww * 2) * wipeState.progress;
-                ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+                const ww = 480, wh = 270;
+                const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
+                ctx.save(); ctx.beginPath(); ctx.rect(fixedX, fixedY, ww, wh); ctx.clip();
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
                     const wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                    drawImageCover(ctx, wipeMedia, wx, wy, ww, wh);
-                    ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(wx, wy, ww, wh);
+                    drawImageCover(ctx, wipeMedia, fixedX, fixedY, ww, wh);
+                    ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(fixedX, fixedY, ww, wh);
                 }
-                if(wipeState.status === 'IN' || wipeState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, wy, ww, wh); }
+                if(wipeState.status === 'IN' || wipeState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, fixedY, ww, wh); }
                 ctx.restore();
             }
 
-            // 3. TEXT & WEATHERの描画 (左下 y=820)
+            // 3. TEXT & WEATHERの描画 (WIPEと同じ座標)
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
                 else if(infoState.status === 'OUT') { 
@@ -357,7 +321,6 @@
                     }
                 }
                 
-                const ix = 50, iy = 820;
                 let iw = 480, ih = 100;
                 let textStr = "";
                 if(infoState.active === 'text') {
@@ -367,34 +330,53 @@
                     iw = 450; ih = 180;
                 }
 
-                const blockX = ix - iw + (iw * 2) * infoState.progress;
-                ctx.save(); ctx.beginPath(); ctx.rect(ix, iy, iw, ih); ctx.clip();
+                const blockX = fixedX - iw + (iw * 2) * infoState.progress;
+                ctx.save(); ctx.beginPath(); ctx.rect(fixedX, fixedY, iw, ih); ctx.clip();
                 if(infoState.progress > 0.5 || infoState.status === 'VISIBLE') {
-                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(ix, iy, iw, ih);
-                    ctx.fillStyle = '#ff5722'; ctx.fillRect(ix, iy, 10, ih); 
+                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(fixedX, fixedY, iw, ih);
+                    ctx.fillStyle = '#ff5722'; ctx.fillRect(fixedX, fixedY, 10, ih); 
                     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
                     if(infoState.active === 'text') {
-                        ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, ix + 30, iy + 25);
+                        ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, fixedX + 30, fixedY + 25);
                     } else {
-                        ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", ix + 30, iy + 20);
-                        ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(ix + 30, iy + 55, iw - 50, 2);
+                        ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", fixedX + 30, fixedY + 20);
+                        ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(fixedX + 30, fixedY + 55, iw - 50, 2);
                         ctx.fillStyle = '#fff'; ctx.font = "32px WRCCleanBold";
-                        ctx.fillText(`COND: ${weatherData.cond}`, ix + 30, iy + 70);
-                        ctx.fillText(`TEMP: ${weatherData.temp}`, ix + 30, iy + 105);
-                        ctx.fillText(`WIND: ${weatherData.wind}`, ix + 30, iy + 140);
+                        ctx.fillText(`COND: ${weatherData.cond}`, fixedX + 30, fixedY + 70);
+                        ctx.fillText(`TEMP: ${weatherData.temp}`, fixedX + 30, fixedY + 105);
+                        ctx.fillText(`WIND: ${weatherData.wind}`, fixedX + 30, fixedY + 140);
                     }
                 }
-                if(infoState.status === 'IN' || infoState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, iy, iw, ih); }
+                if(infoState.status === 'IN' || infoState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, fixedY, iw, ih); }
                 ctx.restore();
             }
 
-            // 4. SCHEDULE (タイマー) の描画 (画面下部中央)
+            // 4. SCHEDULE (カウントダウン付き) の描画 (画面の一番下・中央)
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
 
-                const sx = 550, sy = 940, sw = 1000, sh = 110;
+                const sw = 1050, sh = 120;
+                const sx = (1920 - sw) / 2;
+                const sy = 1080 - sh; // 1番下にくっつける
                 const blockX = sx - sw + (sw * 2) * scheduleState.progress;
+
+                // カウントダウン計算 (設定時刻までの差分)
+                const now = new Date();
+                let targetH = 0, targetM = 0;
+                if (scheduleState.time) {
+                    const parts = scheduleState.time.split(':');
+                    targetH = parseInt(parts[0], 10);
+                    targetM = parseInt(parts[1], 10);
+                }
+                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
+                let diff = targetDate - now;
+                if (diff < 0) diff = 0; // 時刻を過ぎていたら 00:00:00 でストップ
+                const diffSec = Math.floor(diff / 1000);
+                const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
+                const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
+                const ss = String(diffSec % 60).padStart(2, '0');
+                const countdownStr = `${hh}:${mm}:${ss}`;
 
                 ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
                 if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
@@ -402,35 +384,33 @@
                     ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(sx, sy, sw, sh);
                     ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6); // 上部のオレンジ線
 
-                    // COMING UP NEXT
-                    ctx.fillStyle = '#ff5722'; ctx.font = "20px WRCCleanBold"; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                    ctx.fillText("COMING UP NEXT", sx + 25, sy + 25);
+                    // 左側: カウントダウン (HH:MM:SS)
+                    ctx.fillStyle = '#fff';
+                    ctx.font = "bold 80px WRCCleanBold";
+                    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                    ctx.fillText(countdownStr, sx + 40, sy + (sh / 2) + 5);
 
-                    // LOCAL (オレンジ) + 時間とスケジュール (白)
-                    ctx.font = "52px WRCCleanBold";
-                    ctx.fillText("LOCAL", sx + 25, sy + 55);
+                    // 区切り線
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.fillRect(sx + 390, sy + 25, 2, sh - 50);
+
+                    // 右側上: COMING UP NEXT
+                    ctx.fillStyle = '#ff5722'; 
+                    ctx.font = "24px WRCCleanBold"; 
+                    ctx.textBaseline = 'top';
+                    ctx.fillText("COMING UP NEXT", sx + 420, sy + 25);
+
+                    // 右側下: LOCAL と スケジュール名
+                    ctx.fillStyle = '#ff5722'; 
+                    ctx.font = "36px WRCCleanBold";
+                    ctx.fillText("LOCAL", sx + 420, sy + 65);
                     const localWidth = ctx.measureText("LOCAL ").width;
                     
                     ctx.fillStyle = '#fff';
-                    ctx.fillText(`${scheduleState.time}   ${scheduleState.text}`, sx + 25 + localWidth, sy + 55);
+                    ctx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 420 + localWidth, sy + 65);
                 }
+                // アニメーション用オレンジ帯
                 if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, sy, sw, sh); }
-                ctx.restore();
-            }
-
-            // 5. WRC SPEED METER (右下)
-            if (speedState.active) {
-                ctx.save();
-                ctx.translate(1650, 950);
-                ctx.transform(1, 0, -0.2, 1, 0, 0); 
-                
-                ctx.fillStyle = 'rgba(2, 12, 27, 0.85)'; ctx.fillRect(-160, -40, 320, 80); 
-                ctx.fillStyle = '#ff5722'; ctx.fillRect(-160, -40, 320, 6); ctx.fillRect(-160, 36, 320, 4);
-
-                ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.font = "bold 64px WRCCleanBold"; ctx.fillText(speedState.value, -30, 0);
-                
-                ctx.fillStyle = '#ff5722'; ctx.font = "bold 24px WRCCleanBold"; ctx.fillText("KM/H", 80, 5);
                 ctx.restore();
             }
 
@@ -458,15 +438,15 @@
             const src2 = audioCtx.createMediaElementSource(bgmPlayer);
             const src3 = audioCtx.createMediaElementSource(wipeVideo);
             
+            // 全ての音声を配信先とローカルスピーカーの両方に流す
             src1.connect(dest); src1.connect(audioCtx.destination);
             src2.connect(dest); src2.connect(audioCtx.destination);
-            src3.connect(dest); // ワイプの音は配信に乗せるがローカルで二重再生しないよう調整
+            src3.connect(dest); src3.connect(audioCtx.destination);
 
             return dest.stream.getAudioTracks()[0];
         }
 
         async function initBroadcast() {
-            // 初期化時に裏で天気を一回取っておく
             fetchWeatherInBackground();
 
             document.getElementById('mode-selection').style.display = 'none';
