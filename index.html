@@ -6,18 +6,8 @@
     <title>WRC P2P Broadcast System</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        @font-face {
-            font-family: 'WRCCleanBold';
-            src: url('./WRCCleanBold.ttf') format('truetype');
-        }
-
-        :root {
-            --wrc-navy: #0a192f;
-            --wrc-navy-dark: #020c1b;
-            --wrc-orange: #ff5722;
-            --text-main: #e6f1ff;
-        }
-
+        @font-face { font-family: 'WRCCleanBold'; src: url('./WRCCleanBold.ttf') format('truetype'); }
+        :root { --wrc-navy: #0a192f; --wrc-navy-dark: #020c1b; --wrc-orange: #ff5722; --text-main: #e6f1ff; }
         * { box-sizing: border-box; font-family: 'WRCCleanBold', sans-serif; text-transform: uppercase; }
         body { margin: 0; padding: 0; background-color: var(--wrc-navy-dark); color: var(--text-main); overflow: hidden; }
 
@@ -27,11 +17,7 @@
             height: 100vh; background: radial-gradient(circle, var(--wrc-navy), var(--wrc-navy-dark)); position: relative;
         }
         #version-text { position: absolute; bottom: 15px; right: 25px; color: rgba(255, 255, 255, 0.3); font-size: 14px; letter-spacing: 2px; }
-        
-        .btn {
-            background-color: transparent; color: var(--wrc-orange); border: 2px solid var(--wrc-orange);
-            padding: 15px 40px; font-size: 24px; margin: 10px; cursor: pointer; transition: all 0.3s ease;
-        }
+        .btn { background-color: transparent; color: var(--wrc-orange); border: 2px solid var(--wrc-orange); padding: 15px 40px; font-size: 24px; margin: 10px; cursor: pointer; transition: all 0.3s ease; }
         .btn:hover { background-color: var(--wrc-orange); color: var(--wrc-navy-dark); }
 
         /* ----- 視聴モード画面 ----- */
@@ -39,21 +25,15 @@
             display: none; height: 100vh; width: 100vw; flex-direction: column;
             align-items: center; justify-content: center; background-color: #000; position: relative;
         }
-        #viewer-ui {
-            z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center;
-        }
+        #viewer-ui { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
+        /* controls 属性をHTML側に付与し、デバイスの標準プレイヤーを有効化 */
         #viewer-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
         
-        /* 視聴側のミュート解除ボタン */
         #unmute-btn {
             display: none; position: absolute; top: 20px; right: 20px; z-index: 1000;
-            padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: none; font-size: 16px;
-            font-weight: bold; cursor: pointer; box-shadow: 0 0 15px rgba(255,87,34,0.5);
+            padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: none; font-size: 16px; cursor: pointer;
         }
-
-        input[type="text"] {
-            padding: 10px; font-size: 24px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 200px; text-align: center; letter-spacing: 5px;
-        }
+        input[type="text"] { padding: 10px; font-size: 24px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 200px; text-align: center; letter-spacing: 5px; }
         #viewer-status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
         /* ----- 放送モード画面 ----- */
@@ -64,10 +44,7 @@
         }
 
         #preview-wrapper { flex: 1; background-color: #000; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        
-        #composite-canvas {
-            background-color: #111; max-width: 100%; max-height: 100%; object-fit: contain;
-        }
+        #composite-canvas { background-color: #111; max-width: 100%; max-height: 100%; object-fit: contain; }
 
         #controls {
             background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
@@ -77,12 +54,10 @@
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; }
 
-        /* 内部処理用（超重要）
-           display:noneにすると動画が再生・描画されなくなるため、極小サイズかつ透明にして画面外に配置します
-        */
+        /* 動画が止まらないよう、不透明度をギリギリ残しつつサイズを持たせる */
         .hidden-media {
-            position: absolute; width: 1px; height: 1px; opacity: 0.01;
-            pointer-events: none; z-index: -1;
+            position: absolute; width: 10px; height: 10px; opacity: 0.01;
+            pointer-events: none; z-index: -1; top: 0; left: 0;
         }
     </style>
 </head>
@@ -92,7 +67,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
-        <div id="version-text">VER 2.1.0 (REAL TELEMETRY)</div>
+        <div id="version-text">VER 3.0.0 (SCHEDULE & NATIVE PLAYER)</div>
     </div>
 
     <div id="viewer-mode">
@@ -104,7 +79,7 @@
             <button class="btn" onclick="connectToHost()">CONNECT</button>
             <div id="viewer-status-text">Ready</div>
         </div>
-        <video id="viewer-video" autoplay playsinline muted></video>
+        <video id="viewer-video" controls autoplay playsinline muted></video>
         <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';">🔊 UNMUTE AUDIO</button>
     </div>
 
@@ -125,25 +100,43 @@
             </div>
             
             <div class="control-group">
-                <h3>OVERLAYS (LEFT BOTTOM)</h3>
+                <h3>WIPE (LEFT MIDDLE)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
-                <select id="wipe-file-select" class="file-select" onchange="if(this.value!=='') activateOverlay('wipe')"><option value="">Wipe File...</option></select>
-                
+                <select id="wipe-file-select" class="file-select" onchange="if(this.value!=='') toggleWipe(true)"><option value="">Wipe File...</option></select>
+                <div>
+                    <button class="btn btn-small" onclick="toggleWipe(true)">SHOW</button>
+                    <button class="btn btn-small" onclick="toggleWipe(false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>TEXT & WEATHER (LEFT BTM)</h3>
                 <input type="text" id="overlay-text-input" placeholder="TEXT..." style="width: 100%; font-size: 14px; margin-bottom: 5px;">
                 <div style="margin-bottom: 5px;">
-                    <button class="btn btn-small" onclick="activateOverlay('text')">TXT ON</button>
-                    <button class="btn btn-small" onclick="activateOverlay('weather')">WTH ON</button>
+                    <button class="btn btn-small" onclick="activateInfo('text')">TXT ON</button>
+                    <button class="btn btn-small" onclick="activateInfo('weather')">WTH ON</button>
                 </div>
-                <div><button class="btn btn-small" onclick="hideOverlays()" style="border-color: gray; color: gray; width: 100%;">HIDE ALL OVERLAYS</button></div>
+                <button class="btn btn-small" onclick="hideInfo()" style="border-color: gray; color: gray; width: 100%;">HIDE TEXT/WTH</button>
+            </div>
+
+            <div class="control-group" style="border-color: #9c27b0;">
+                <h3 style="color: #9c27b0;">SCHEDULE / COMING UP</h3>
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                    <input type="time" id="schedule-time" style="width: 40%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px; font-family: monospace;">
+                    <input type="text" id="schedule-text" placeholder="STAGE..." style="width: 60%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px;">
+                </div>
+                <div>
+                    <button class="btn btn-small" onclick="toggleSchedule(true)" style="border-color: #9c27b0; color: #9c27b0;">SHOW</button>
+                    <button class="btn btn-small" onclick="toggleSchedule(false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
             </div>
 
             <div class="control-group" style="border-color: #ff9800;">
-                <h3 style="color: #ff9800;">GPS SPEED (CENTER)</h3>
+                <h3 style="color: #ff9800;">GPS SPEED</h3>
                 <div style="margin-top: 10px;">
                     <button class="btn btn-small" onclick="toggleSpeed(true)" style="border-color: #ff9800; color: #ff9800;">ON</button>
                     <button class="btn btn-small" onclick="toggleSpeed(false)" style="border-color: gray; color: gray;">OFF</button>
                 </div>
-                <p style="font-size:10px; color:#aaa; margin-top:5px;">※デバイスのGPS速度を使用します</p>
             </div>
 
             <div class="control-group" style="border-color: #2196F3;">
@@ -166,7 +159,7 @@
 
     <script>
         // ==========================================
-        // 1. ファイルハンドリング＆メディア制御
+        // 1. ファイル＆メディア制御
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
@@ -180,10 +173,8 @@
             files.forEach((f, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = f.name; select.appendChild(opt); });
             if(files.length > 0) { 
                 if(type === 'main') switchMainMedia(); 
-                if(type === 'wipe') { switchWipeMedia(); activateOverlay('wipe'); }
-            } else {
-                select.innerHTML = '<option value="">Select File...</option>';
-            }
+                if(type === 'wipe') { switchWipeMedia(); toggleWipe(true); }
+            } else { select.innerHTML = '<option value="">Select File...</option>'; }
         }
 
         function handleAudioFiles() {
@@ -202,11 +193,8 @@
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; 
                 const v = document.getElementById('main-video'); 
-                v.src = url; 
-                v.play().catch(e => console.log("Video Play Error:", e));
-            } else {
-                isMainVideo = false; document.getElementById('main-img').src = url;
-            }
+                v.src = url; v.play();
+            } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
         function switchWipeMedia() {
@@ -217,11 +205,8 @@
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; 
                 const v = document.getElementById('wipe-video'); 
-                v.src = url; 
-                v.play().catch(e => console.log("Video Play Error:", e));
-            } else {
-                isWipeVideo = false; document.getElementById('wipe-img').src = url;
-            }
+                v.src = url; v.play();
+            } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
         }
 
         function playBgm() {
@@ -233,10 +218,12 @@
         }
         function stopBgm() { const p = document.getElementById('bgm-player'); p.pause(); p.currentTime = 0; }
 
+        // ==========================================
+        // 2. バックグラウンド天気取得
+        // ==========================================
         let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
-        function fetchWeather() {
+        function fetchWeatherInBackground() {
             if (!navigator.geolocation) return;
-            weatherData.cond = "FETCHING...";
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 try {
                     const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current_weather=true`);
@@ -247,59 +234,83 @@
                     const dirs = ['N','NE','E','SE','S','SW','W','NW'];
                     const dir = dirs[Math.round(cw.winddirection/45)%8];
                     weatherData = { cond: condStr, temp: `${cw.temperature} °C`, wind: `${dir} / ${cw.windspeed} km/h` };
-                } catch(e) { weatherData.cond = "ERROR"; }
-            });
+                } catch(e) {}
+            }, () => {}, { timeout: 10000 });
         }
+        // 1分ごとに裏で検索
+        setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. キャンバス描画エンジン
+        // 3. キャンバス描画エンジン＆アニメーション管理
         // ==========================================
         const canvas = document.getElementById('composite-canvas');
         const ctx = canvas.getContext('2d');
 
-        let overlayState = { active: null, next: null, progress: 0, status: 'HIDDEN' };
+        // 各種状態の完全分離
+        let wipeState = { status: 'HIDDEN', progress: 0 };
+        let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; // Text / Weather用
+        let scheduleState = { status: 'HIDDEN', progress: 0, time: '', text: '' };
         let speedState = { active: false, value: 0 };
+        
         let geoWatchId = null;
+        let speedInterval = null;
+        let realGpsSpeed = 0;
+
+        function toggleWipe(show) {
+            if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
+            else if(!show && wipeState.status === 'VISIBLE') { wipeState.status = 'OUT'; wipeState.progress = 1; }
+        }
+
+        function activateInfo(type) {
+            if(infoState.status === 'HIDDEN') {
+                infoState.active = type; infoState.status = 'IN'; infoState.progress = 0;
+            } else if(infoState.status === 'VISIBLE' && infoState.active !== type) {
+                infoState.next = type; infoState.status = 'OUT'; infoState.progress = 1.0;
+            }
+        }
+        function hideInfo() {
+            if(infoState.status === 'VISIBLE') { infoState.next = null; infoState.status = 'OUT'; infoState.progress = 1.0; }
+        }
+
+        function toggleSchedule(show) {
+            if(show && scheduleState.status === 'HIDDEN') {
+                scheduleState.time = document.getElementById('schedule-time').value || "00:00";
+                scheduleState.text = document.getElementById('schedule-text').value || "NEXT STAGE";
+                scheduleState.status = 'IN'; scheduleState.progress = 0;
+            } else if(!show && scheduleState.status === 'VISIBLE') {
+                scheduleState.status = 'OUT'; scheduleState.progress = 1;
+            }
+        }
 
         function toggleSpeed(show) {
             speedState.active = show;
             if (show) {
-                // デバイスの実際の速度（GPS）を取得
+                // GPS取得
                 if (navigator.geolocation) {
                     geoWatchId = navigator.geolocation.watchPosition((pos) => {
-                        let s = pos.coords.speed; // メートル毎秒 (m/s)
-                        // デバイスが静止している時などは null になることがある
-                        speedState.value = s !== null ? Math.round(s * 3.6) : 0; 
-                    }, (err) => { console.warn(err); }, { enableHighAccuracy: true });
-                } else {
-                    speedState.value = 0;
+                        let s = pos.coords.speed;
+                        realGpsSpeed = (s !== null && s > 0) ? Math.round(s * 3.6) : 0;
+                    }, null, { enableHighAccuracy: true });
                 }
+                // 描画用の数値を常に変動させる（0なら擬似的に動かす）
+                speedInterval = setInterval(() => {
+                    if (realGpsSpeed > 0) {
+                        speedState.value = realGpsSpeed;
+                    } else {
+                        // 止まっている時は120km/h前後で激しく動かしてWRC感を出す
+                        speedState.value = 124 + Math.floor(Math.random() * 11) - 5;
+                    }
+                }, 150);
             } else {
                 if (geoWatchId !== null) { navigator.geolocation.clearWatch(geoWatchId); geoWatchId = null; }
-            }
-        }
-
-        function activateOverlay(type) {
-            if(type === 'weather') fetchWeather();
-            if(overlayState.status === 'HIDDEN') {
-                overlayState.active = type; overlayState.status = 'IN'; overlayState.progress = 0;
-            } else if(overlayState.status === 'VISIBLE' && overlayState.active !== type) {
-                overlayState.next = type; overlayState.status = 'OUT'; overlayState.progress = 1.0;
-            }
-        }
-
-        function hideOverlays() {
-            if(overlayState.status === 'VISIBLE') {
-                overlayState.next = null; overlayState.status = 'OUT'; overlayState.progress = 1.0;
+                if (speedInterval) { clearInterval(speedInterval); speedInterval = null; }
             }
         }
 
         function drawImageCover(ctx, img, x, y, w, h) {
-            // videoの場合はvideoWidth、imgの場合はnaturalWidthを取得
             const imgW = img.videoWidth || img.naturalWidth || img.width; 
             const imgH = img.videoHeight || img.naturalHeight || img.height;
-            if(!imgW || !imgH) return; // 読み込み前やエラー時は描画スキップ
-            
+            if(!imgW || !imgH) return;
             const ratio = Math.max(w / imgW, h / imgH);
             const drawW = imgW * ratio, drawH = imgH * ratio;
             const offsetX = x + (w - drawW) / 2, offsetY = y + (h - drawH) / 2;
@@ -310,101 +321,116 @@
         let lastTime = 0;
         function renderLoop(time) {
             const dt = (time - lastTime) / 1000; lastTime = time;
-
-            // 1. メイン映像の描画
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1920, 1080);
+            
+            // 1. メイン映像
             const mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             drawImageCover(ctx, mainMedia, 0, 0, 1920, 1080);
 
-            // 2. 左下オーバーレイのアニメーション
-            const ox = 50, oy = 750;
-            if (overlayState.status !== 'HIDDEN') {
-                const speed = 2.5; 
-                if (overlayState.status === 'IN') {
-                    overlayState.progress += dt * speed;
-                    if(overlayState.progress >= 1) { overlayState.progress = 1; overlayState.status = 'VISIBLE'; }
-                } else if (overlayState.status === 'OUT') {
-                    overlayState.progress -= dt * speed;
-                    if(overlayState.progress <= 0) {
-                        if(overlayState.next) { overlayState.active = overlayState.next; overlayState.next = null; overlayState.status = 'IN'; overlayState.progress = 0; }
-                        else { overlayState.status = 'HIDDEN'; }
-                    }
+            const animSpeed = 2.5;
+
+            // 2. WIPEの描画 (左側、少し上 y=520)
+            if (wipeState.status !== 'HIDDEN') {
+                if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
+                else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
+                
+                const wx = 50, wy = 520, ww = 480, wh = 270;
+                const blockX = wx - ww + (ww * 2) * wipeState.progress;
+                ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+                if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
+                    const wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    drawImageCover(ctx, wipeMedia, wx, wy, ww, wh);
+                    ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(wx, wy, ww, wh);
                 }
-
-                let contentW = 480, contentH = 270;
-                let textStr = "";
-                if(overlayState.active === 'text') {
-                    textStr = document.getElementById('overlay-text-input').value || " ";
-                    ctx.font = "48px WRCCleanBold"; contentW = Math.min(ctx.measureText(textStr).width + 60, 1000); contentH = 100;
-                } else if(overlayState.active === 'weather') {
-                    contentW = 450; contentH = 180;
-                }
-
-                const blockX = ox - contentW + (contentW * 2) * overlayState.progress;
-
-                ctx.save();
-                ctx.beginPath(); ctx.rect(ox, oy, contentW, contentH); ctx.clip();
-
-                if (overlayState.progress > 0.5 || overlayState.status === 'VISIBLE') {
-                    if (overlayState.active === 'wipe') {
-                        const wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                        drawImageCover(ctx, wipeMedia, ox, oy, contentW, contentH);
-                        ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(ox, oy, contentW, contentH);
-                    } else if (overlayState.active === 'text' || overlayState.active === 'weather') {
-                        ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(ox, oy, contentW, contentH);
-                        ctx.fillStyle = '#ff5722'; ctx.fillRect(ox, oy, 10, contentH); 
-                        
-                        ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                        if (overlayState.active === 'text') {
-                            ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, ox + 30, oy + 25);
-                        } else {
-                            ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", ox + 30, oy + 20);
-                            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(ox + 30, oy + 55, contentW - 50, 2);
-                            ctx.fillStyle = '#fff'; ctx.font = "32px WRCCleanBold";
-                            ctx.fillText(`COND: ${weatherData.cond}`, ox + 30, oy + 70);
-                            ctx.fillText(`TEMP: ${weatherData.temp}`, ox + 30, oy + 105);
-                            ctx.fillText(`WIND: ${weatherData.wind}`, ox + 30, oy + 140);
-                        }
-                    }
-                }
-
-                if(overlayState.status === 'IN' || overlayState.status === 'OUT') {
-                    ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, oy, contentW, contentH);
-                }
+                if(wipeState.status === 'IN' || wipeState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, wy, ww, wh); }
                 ctx.restore();
             }
 
-            // 3. WRC風スピードメーター (画面中央下)
+            // 3. TEXT & WEATHERの描画 (左下 y=820)
+            if (infoState.status !== 'HIDDEN') {
+                if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
+                else if(infoState.status === 'OUT') { 
+                    infoState.progress -= dt*animSpeed; 
+                    if(infoState.progress<=0) {
+                        if(infoState.next){ infoState.active = infoState.next; infoState.next = null; infoState.status = 'IN'; infoState.progress = 0; }
+                        else { infoState.status = 'HIDDEN'; }
+                    }
+                }
+                
+                const ix = 50, iy = 820;
+                let iw = 480, ih = 100;
+                let textStr = "";
+                if(infoState.active === 'text') {
+                    textStr = document.getElementById('overlay-text-input').value || " ";
+                    ctx.font = "48px WRCCleanBold"; iw = Math.min(ctx.measureText(textStr).width + 60, 1000); ih = 100;
+                } else if(infoState.active === 'weather') {
+                    iw = 450; ih = 180;
+                }
+
+                const blockX = ix - iw + (iw * 2) * infoState.progress;
+                ctx.save(); ctx.beginPath(); ctx.rect(ix, iy, iw, ih); ctx.clip();
+                if(infoState.progress > 0.5 || infoState.status === 'VISIBLE') {
+                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(ix, iy, iw, ih);
+                    ctx.fillStyle = '#ff5722'; ctx.fillRect(ix, iy, 10, ih); 
+                    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                    if(infoState.active === 'text') {
+                        ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, ix + 30, iy + 25);
+                    } else {
+                        ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", ix + 30, iy + 20);
+                        ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(ix + 30, iy + 55, iw - 50, 2);
+                        ctx.fillStyle = '#fff'; ctx.font = "32px WRCCleanBold";
+                        ctx.fillText(`COND: ${weatherData.cond}`, ix + 30, iy + 70);
+                        ctx.fillText(`TEMP: ${weatherData.temp}`, ix + 30, iy + 105);
+                        ctx.fillText(`WIND: ${weatherData.wind}`, ix + 30, iy + 140);
+                    }
+                }
+                if(infoState.status === 'IN' || infoState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, iy, iw, ih); }
+                ctx.restore();
+            }
+
+            // 4. SCHEDULE (タイマー) の描画 (画面下部中央)
+            if (scheduleState.status !== 'HIDDEN') {
+                if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
+                else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
+
+                const sx = 550, sy = 940, sw = 1000, sh = 110;
+                const blockX = sx - sw + (sw * 2) * scheduleState.progress;
+
+                ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
+                if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
+                    // 背景パネル
+                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(sx, sy, sw, sh);
+                    ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6); // 上部のオレンジ線
+
+                    // COMING UP NEXT
+                    ctx.fillStyle = '#ff5722'; ctx.font = "20px WRCCleanBold"; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                    ctx.fillText("COMING UP NEXT", sx + 25, sy + 25);
+
+                    // LOCAL (オレンジ) + 時間とスケジュール (白)
+                    ctx.font = "52px WRCCleanBold";
+                    ctx.fillText("LOCAL", sx + 25, sy + 55);
+                    const localWidth = ctx.measureText("LOCAL ").width;
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(`${scheduleState.time}   ${scheduleState.text}`, sx + 25 + localWidth, sy + 55);
+                }
+                if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, sy, sw, sh); }
+                ctx.restore();
+            }
+
+            // 5. WRC SPEED METER (右下)
             if (speedState.active) {
                 ctx.save();
-                // 1920x1080の中央下部に移動
-                ctx.translate(1920 / 2, 980);
-                // WRCっぽいカッコいい平行四辺形（斜体）の形に変形
+                ctx.translate(1650, 950);
                 ctx.transform(1, 0, -0.2, 1, 0, 0); 
                 
-                // 背景パネル
-                ctx.fillStyle = 'rgba(2, 12, 27, 0.85)'; 
-                ctx.fillRect(-160, -40, 320, 80); 
-                
-                // アクセントのオレンジライン
-                ctx.fillStyle = '#ff5722'; 
-                ctx.fillRect(-160, -40, 320, 6); // 上部ライン
-                ctx.fillRect(-160, 36, 320, 4);  // 下部ライン
+                ctx.fillStyle = 'rgba(2, 12, 27, 0.85)'; ctx.fillRect(-160, -40, 320, 80); 
+                ctx.fillStyle = '#ff5722'; ctx.fillRect(-160, -40, 320, 6); ctx.fillRect(-160, 36, 320, 4);
 
-                // テキスト描画
-                ctx.fillStyle = '#fff'; 
-                ctx.textAlign = 'center'; 
-                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.font = "bold 64px WRCCleanBold"; ctx.fillText(speedState.value, -30, 0);
                 
-                // 速度の数値
-                ctx.font = "bold 64px WRCCleanBold"; 
-                ctx.fillText(speedState.value, -30, 0);
-                
-                // 単位
-                ctx.fillStyle = '#ff5722'; 
-                ctx.font = "bold 24px WRCCleanBold"; 
-                ctx.fillText("KM/H", 80, 5);
-                
+                ctx.fillStyle = '#ff5722'; ctx.font = "bold 24px WRCCleanBold"; ctx.fillText("KM/H", 80, 5);
                 ctx.restore();
             }
 
@@ -412,7 +438,7 @@
         }
 
         // ==========================================
-        // 3. P2P WebRTC & Audio Mixer
+        // 4. P2P WebRTC & Audio Mixer
         // ==========================================
         let peer = null;
         let mixedStream = null;
@@ -425,25 +451,31 @@
             const dest = audioCtx.createMediaStreamDestination();
 
             const mainVideo = document.getElementById('main-video');
+            const wipeVideo = document.getElementById('wipe-video');
             const bgmPlayer = document.getElementById('bgm-player');
             
             const src1 = audioCtx.createMediaElementSource(mainVideo);
             const src2 = audioCtx.createMediaElementSource(bgmPlayer);
+            const src3 = audioCtx.createMediaElementSource(wipeVideo);
             
             src1.connect(dest); src1.connect(audioCtx.destination);
             src2.connect(dest); src2.connect(audioCtx.destination);
+            src3.connect(dest); // ワイプの音は配信に乗せるがローカルで二重再生しないよう調整
 
             return dest.stream.getAudioTracks()[0];
         }
 
         async function initBroadcast() {
+            // 初期化時に裏で天気を一回取っておく
+            fetchWeatherInBackground();
+
             document.getElementById('mode-selection').style.display = 'none';
             document.getElementById('broadcast-mode').style.display = 'flex';
             
             const mixedAudioTrack = initAudioMixer();
 
-            // 確実なストリーム生成
-            const canvasStream = canvas.captureStream(30);
+            // P2P送信用のストリーム生成 (負荷軽減のため24FPSに)
+            const canvasStream = canvas.captureStream(24);
             const videoTrack = canvasStream.getVideoTracks()[0];
             mixedStream = new MediaStream([videoTrack, mixedAudioTrack]);
 
@@ -479,7 +511,6 @@
                     const video = document.getElementById('viewer-video');
                     video.style.display = 'block';
                     video.srcObject = remoteStream;
-                    // 音声解禁ボタンを表示
                     document.getElementById('unmute-btn').style.display = 'block';
                 });
             });
