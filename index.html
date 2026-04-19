@@ -39,17 +39,15 @@
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
-        /* ----- 共通スケールエリア (1920x1080を維持して自動拡大縮小) ----- */
+        /* ----- 共通スケールエリア ----- */
         .scale-area {
             width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
             transform-origin: center center; transform: translate(-50%, -50%);
         }
 
-        /* YouTube用Iframe (Syncシステム用) */
         .yt-main-iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; z-index: 1; display: none; }
         .yt-wipe-iframe { position: absolute; top: 800px; left: 50px; width: 480px; height: 270px; border: 8px solid var(--wrc-orange); z-index: 3; display: none; }
 
-        /* 視聴者側のブレンドモード (YouTube MAIN時にキャンバスの黒を透かす用) */
         .blend-screen { mix-blend-mode: screen; opacity: 0.95; }
 
         /* ----- 放送モード画面 ----- */
@@ -82,7 +80,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 8.0.0 (YOUTUBE SYNC & AUTO DJ)</div>
+        <div id="version-text">VER 8.1.0 (STARTUP CRASH FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -215,7 +213,7 @@
         // ==========================================
         // 0. ローカルデータベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB3";
+        const dbName = "WrcBroadcastDB4";
         let db;
 
         function initDB() {
@@ -264,12 +262,10 @@
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
 
-                // BGMのランダム自動再生 (AUTO DJ)
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgm(true); });
             } catch(e) {}
         };
 
-        // スケール制御
         function resizePreview() {
             const wrappers = [document.getElementById('preview-wrapper'), document.getElementById('viewer-mode')];
             wrappers.forEach(wrapper => {
@@ -284,14 +280,13 @@
         window.addEventListener('resize', resizePreview);
 
         // ==========================================
-        // 1. YouTube Sync System & メディア制御
+        // 1. YouTube Sync & メディア制御
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
 
-        // P2P同期用ステート
         let syncState = { mainYt: null, wipeYt: null, wipeVisible: false };
-        let viewerConns = []; // 接続中の全視聴者
+        let viewerConns = []; 
 
         function extractYtId(url) {
             const match = url.match(/(?:youtu\.be\/|v=)([^&]+)/);
@@ -313,17 +308,12 @@
             iframe.style.display = 'block';
 
             if(target === 'main') {
-                isMainVideo = 'youtube';
-                syncState.mainYt = id;
+                isMainVideo = 'youtube'; syncState.mainYt = id;
             } else {
-                isWipeVideo = 'youtube';
-                syncState.wipeYt = id;
-                toggleWipe(true);
+                isWipeVideo = 'youtube'; syncState.wipeYt = id; toggleWipe(true);
             }
             broadcastSyncState();
         }
-
-        function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 
         function populateSelect(type, files) {
             const select = document.getElementById(`${type}-file-select`);
@@ -355,10 +345,8 @@
         }
 
         function switchMainMedia() {
-            resumeAudio();
             const select = document.getElementById('main-file-select');
             
-            // YouTubeクリア
             isMainVideo = false; syncState.mainYt = null; 
             document.getElementById('host-yt-main').style.display = 'none';
             document.getElementById('host-yt-main').src = "";
@@ -376,10 +364,8 @@
         }
 
         function switchWipeMedia() {
-            resumeAudio();
             const select = document.getElementById('wipe-file-select');
             
-            // YouTubeクリア
             isWipeVideo = false; syncState.wipeYt = null;
             document.getElementById('host-yt-wipe').style.display = 'none';
             document.getElementById('host-yt-wipe').src = "";
@@ -398,7 +384,6 @@
         }
 
         function playBgm(random = false) {
-            resumeAudio();
             if (bgmFiles.length === 0) return;
             const select = document.getElementById('bgm-select');
             const player = document.getElementById('bgm-player');
@@ -411,7 +396,6 @@
                 if(select.value === "") select.value = "0";
                 idx = parseInt(select.value);
             }
-
             player.src = URL.createObjectURL(bgmFiles[idx]);
             player.play().catch(()=>{});
         }
@@ -455,9 +439,7 @@
         function toggleWipe(show) {
             if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
             else if(!show && wipeState.status === 'VISIBLE') { wipeState.status = 'OUT'; wipeState.progress = 1; }
-            
-            syncState.wipeVisible = show;
-            broadcastSyncState(); // WIPEの表示状態も視聴者に送る（YouTube同期用）
+            syncState.wipeVisible = show; broadcastSyncState();
         }
         function activateInfo(type) {
             if(infoState.status === 'HIDDEN') { infoState.active = type; infoState.status = 'IN'; infoState.progress = 0; } 
@@ -491,7 +473,6 @@
             const dt = (time - lastUpdate) / 1000;
             lastUpdate = time;
 
-            // YouTubeメイン映像時は背景を透明にしてiframeを見せる
             if (isMainVideo === 'youtube') {
                 compCtx.clearRect(0, 0, 1920, 1080);
             } else {
@@ -508,9 +489,8 @@
             }
 
             const animSpeed = 2.5;
-            const fixedX = 50, fixedY = 800; // 最下部限界まで下げる
+            const fixedX = 50, fixedY = 800;
 
-            // WIPE
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
@@ -521,7 +501,7 @@
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
                     if (isWipeVideo === 'youtube') {
-                        compCtx.clearRect(fixedX, fixedY, ww, wh); // YT iframeのために穴をあける
+                        compCtx.clearRect(fixedX, fixedY, ww, wh);
                         document.getElementById('host-yt-wipe').style.display = 'block';
                     } else {
                         document.getElementById('host-yt-wipe').style.display = 'none';
@@ -534,14 +514,10 @@
                 } else {
                     document.getElementById('host-yt-wipe').style.display = 'none';
                 }
-                
                 if(wipeState.status === 'IN' || wipeState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh); }
                 compCtx.restore();
-            } else {
-                document.getElementById('host-yt-wipe').style.display = 'none';
-            }
+            } else { document.getElementById('host-yt-wipe').style.display = 'none'; }
 
-            // TEXT & WEATHER
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
                 else if(infoState.status === 'OUT') { 
@@ -580,7 +556,6 @@
                 compCtx.restore();
             }
 
-            // SCHEDULE
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
@@ -611,33 +586,31 @@
                     compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
                     compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
 
-                    compCtx.fillStyle = '#fff'; compCtx.font = "85px WRCCleanBold";
+                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
                     compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
                     compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
 
                     compCtx.fillStyle = 'rgba(255,255,255,0.3)';
-                    compCtx.fillRect(sx + 450, sy + 25, 2, sh - 50);
+                    compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
 
                     compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
                     compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                    compCtx.fillText("COMING UP NEXT", sx + 480, sy + 30);
+                    compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
 
                     compCtx.font = "40px WRCCleanBold";
-                    compCtx.fillText("LOCAL", sx + 480, sy + 70);
+                    compCtx.fillText("LOCAL", sx + 510, sy + 70);
                     const localWidth = compCtx.measureText("LOCAL ").width;
                     
                     compCtx.fillStyle = '#fff';
-                    compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 480 + localWidth, sy + 70);
+                    compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
                 }
                 if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); }
                 compCtx.restore();
             }
 
-            // 配信FPSコントロール (指定FPSの間隔でstreamCanvasにコピー)
             const elapsedStream = time - lastStreamDrawTime;
             if (elapsedStream >= (1000 / targetFPS)) {
                 lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
-                // 背景クリア (ブレンド対策)
                 streamCtx.clearRect(0,0,1920,1080);
                 streamCtx.drawImage(compositeCanvas, 0, 0);
             }
@@ -651,41 +624,49 @@
         let audioCtx = null;
 
         function initAudioMixer() {
-            if(audioCtx) return;
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-            const dest = audioCtx.createMediaStreamDestination();
+            try {
+                if(audioCtx) return;
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                const dest = audioCtx.createMediaStreamDestination();
 
-            const mainVideo = document.getElementById('main-video');
-            const wipeVideo = document.getElementById('wipe-video');
-            const bgmPlayer = document.getElementById('bgm-player');
-            const extCamVideo = document.getElementById('ext-cam-video');
-            
-            [mainVideo, bgmPlayer, wipeVideo, extCamVideo].forEach(media => {
-                // CORSエラーを完全に回避してAudioContextに取り込む
-                const src = audioCtx.createMediaElementSource(media);
-                src.connect(dest);
-                src.connect(audioCtx.destination);
-            });
+                const mainVideo = document.getElementById('main-video');
+                const wipeVideo = document.getElementById('wipe-video');
+                const bgmPlayer = document.getElementById('bgm-player');
+                const extCamVideo = document.getElementById('ext-cam-video');
+                
+                [mainVideo, bgmPlayer, wipeVideo, extCamVideo].forEach(media => {
+                    const src = audioCtx.createMediaElementSource(media);
+                    src.connect(dest);
+                });
 
-            return dest.stream.getAudioTracks()[0];
+                return dest.stream.getAudioTracks()[0];
+            } catch(e) { return null; }
         }
 
         async function initBroadcast() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
-                unlockAllMedia(); fetchWeatherInBackground();
+                
+                // キャンバス事前描画（InvalidStateError回避の最強手法）
+                streamCtx.fillStyle = '#000'; streamCtx.fillRect(0, 0, 1920, 1080);
+                compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
 
+                const captureFunc = streamCanvas.captureStream || streamCanvas.mozCaptureStream;
+                if (!captureFunc) return alert("お使いのブラウザは映像配信に非対応です。");
+
+                fetchWeatherInBackground();
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('broadcast-mode').style.display = 'flex';
                 resizePreview();
                 
                 const audioTrack = initAudioMixer();
 
-                // 配信ストリームはstreamCanvasから取得（FPS制御済み）
-                const canvasStream = streamCanvas.captureStream(60); 
+                const canvasStream = captureFunc.call(streamCanvas, 60); 
                 const videoTrack = canvasStream.getVideoTracks()[0];
-                mixedStream = new MediaStream([videoTrack, audioTrack]);
+                
+                const tracks = [videoTrack, audioTrack].filter(t => t);
+                mixedStream = new MediaStream(tracks);
 
                 const displayId = Math.floor(1000 + Math.random() * 9000).toString();
                 const secureHostId = "wrc-broadcast-pro-" + displayId; 
@@ -713,7 +694,6 @@
                             document.getElementById('p2p-status').innerText = "Viewer Connected!";
                             document.getElementById('p2p-status').style.color = "yellow";
                             peer.call(data.viewerId, mixedStream);
-                            // 接続した視聴者に現在のYouTube同期状態を送信
                             conn.send({ type: 'SYNC_STATE', state: syncState });
                         }
                     });
@@ -735,9 +715,6 @@
             });
         }
 
-        // ==========================================
-        // 5. 視聴者モード & YouTube Sync受信
-        // ==========================================
         function initViewer() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
@@ -771,7 +748,6 @@
             
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
             conn.on('data', (data) => {
-                // YouTube同期情報の受信処理
                 if (data.type === 'SYNC_STATE') {
                     const s = data.state;
                     const vMain = document.getElementById('viewer-yt-main');
@@ -779,16 +755,16 @@
                     const vVideo = document.getElementById('viewer-video');
 
                     if(s.mainYt) {
-                        if(!vMain.src.includes(s.mainYt)) vMain.src = `https://www.youtube.com/embed/${s.mainYt}?autoplay=1`;
+                        if(!vMain.src.includes(s.mainYt)) vMain.src = `https://www.youtube.com/embed/${s.mainYt}?autoplay=1&mute=1`;
                         vMain.style.display = 'block';
-                        vVideo.classList.add('blend-screen'); // Canvasの黒部分を透かす
+                        vVideo.classList.add('blend-screen');
                     } else {
                         vMain.style.display = 'none'; vMain.src = "";
                         vVideo.classList.remove('blend-screen');
                     }
 
                     if(s.wipeYt && s.wipeVisible) {
-                        if(!vWipe.src.includes(s.wipeYt)) vWipe.src = `https://www.youtube.com/embed/${s.wipeYt}?autoplay=1`;
+                        if(!vWipe.src.includes(s.wipeYt)) vWipe.src = `https://www.youtube.com/embed/${s.wipeYt}?autoplay=1&mute=1`;
                         vWipe.style.display = 'block';
                     } else {
                         vWipe.style.display = 'none'; vWipe.src = "";
@@ -798,9 +774,6 @@
             conn.on('error', () => { alert("接続エラー"); });
         }
 
-        // ==========================================
-        // 6. EXTERNAL CAMERA (外部カメラ機能)
-        // ==========================================
         let extCamStream = null;
         async function initExternalCam() {
             try {
@@ -825,7 +798,6 @@
             const call = peer.call(targetHostId, extCamStream, { metadata: { type: 'ext-cam' } });
             call.on('stream', () => {}); 
             
-            // 接続成功でUIを消してカメラ映像だけに没入させる
             document.getElementById('extcam-ui').style.display = 'none';
         }
     </script>
