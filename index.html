@@ -45,11 +45,6 @@
             transform-origin: center center; transform: translate(-50%, -50%);
         }
 
-        .yt-main-iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; z-index: 1; display: none; }
-        .yt-wipe-iframe { position: absolute; top: 800px; left: 50px; width: 480px; height: 270px; border: 8px solid var(--wrc-orange); z-index: 3; display: none; }
-
-        .blend-screen { mix-blend-mode: screen; opacity: 0.95; }
-
         /* ----- 放送モード画面 ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; position: relative; z-index: 10; background: #000; }
         #broadcast-info {
@@ -80,7 +75,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 8.2.0 (WEATHER BUG FIXED)</div>
+        <div id="version-text">VER 9.0.0 (PURE LOCAL & EXT CAM)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -94,9 +89,7 @@
         </div>
         
         <div class="scale-area" id="viewer-scale-area">
-            <iframe id="viewer-yt-main" class="yt-main-iframe" allow="autoplay"></iframe>
-            <video id="viewer-video" autoplay playsinline muted style="position: absolute; top:0; left:0; width:1920px; height:1080px; object-fit: cover; z-index: 2; pointer-events: none;"></video>
-            <iframe id="viewer-yt-wipe" class="yt-wipe-iframe" allow="autoplay"></iframe>
+            <video id="viewer-video" autoplay playsinline muted style="position: absolute; top:0; left:0; width:1920px; height:1080px; object-fit: cover; z-index: 2;"></video>
         </div>
         <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';">🔊 UNMUTE AUDIO</button>
     </div>
@@ -120,10 +113,8 @@
 
         <div id="preview-wrapper">
             <div class="scale-area" id="host-scale-area">
-                <iframe id="host-yt-main" class="yt-main-iframe" allow="autoplay"></iframe>
                 <canvas id="composite-canvas" width="1920" height="1080"></canvas>
                 <canvas id="stream-canvas" class="hidden-media" width="1920" height="1080"></canvas>
-                <iframe id="host-yt-wipe" class="yt-wipe-iframe" allow="autoplay"></iframe>
             </div>
         </div>
 
@@ -145,20 +136,12 @@
                 <h3>MAIN MEDIA</h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <select id="main-file-select" class="file-select" onchange="switchMainMedia()"><option value="">Select File...</option></select>
-                <div class="flex-row">
-                    <input type="text" id="main-yt-input" placeholder="YouTube URL" style="width: 70%; padding: 5px; font-size: 10px;">
-                    <button class="btn btn-small" onclick="setYouTube('main')" style="width: 30%;">SET YT</button>
-                </div>
             </div>
             
             <div class="control-group">
                 <h3>WIPE (LEFT BOTTOM)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <select id="wipe-file-select" class="file-select" onchange="switchWipeMedia()"><option value="">Wipe File...</option></select>
-                <div class="flex-row">
-                    <input type="text" id="wipe-yt-input" placeholder="YouTube URL" style="width: 70%; padding: 5px; font-size: 10px;">
-                    <button class="btn btn-small" onclick="setYouTube('wipe')" style="width: 30%;">SET YT</button>
-                </div>
                 <div class="flex-row">
                     <button class="btn btn-small" onclick="toggleWipe(true)">SHOW WIPE</button>
                     <button class="btn btn-small" onclick="toggleWipe(false)" style="border-color: gray; color: gray;">HIDE</button>
@@ -280,7 +263,7 @@
         window.addEventListener('resize', resizePreview);
 
         // ==========================================
-        // 1. 天気取得システム (再実装箇所)
+        // 1. 天気取得システム
         // ==========================================
         let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
         function fetchWeatherInBackground() {
@@ -301,40 +284,10 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. YouTube Sync & メディア制御
+        // 2. メディア制御 (YouTube機能削除・完全ローカル化)
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
-
-        let syncState = { mainYt: null, wipeYt: null, wipeVisible: false };
-        let viewerConns = []; 
-
-        function extractYtId(url) {
-            const match = url.match(/(?:youtu\.be\/|v=)([^&]+)/);
-            return match ? match[1] : null;
-        }
-
-        function broadcastSyncState() {
-            const data = { type: 'SYNC_STATE', state: syncState };
-            viewerConns.forEach(conn => { if(conn.open) conn.send(data); });
-        }
-
-        function setYouTube(target) {
-            const input = document.getElementById(`${target}-yt-input`).value;
-            const id = extractYtId(input);
-            if(!id) return alert("正しいYouTubeのURLを入力してください");
-            
-            const iframe = document.getElementById(`host-yt-${target}`);
-            iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1`;
-            iframe.style.display = 'block';
-
-            if(target === 'main') {
-                isMainVideo = 'youtube'; syncState.mainYt = id;
-            } else {
-                isWipeVideo = 'youtube'; syncState.wipeYt = id; toggleWipe(true);
-            }
-            broadcastSyncState();
-        }
 
         function populateSelect(type, files) {
             const select = document.getElementById(`${type}-file-select`);
@@ -367,12 +320,6 @@
 
         function switchMainMedia() {
             const select = document.getElementById('main-file-select');
-            
-            isMainVideo = false; syncState.mainYt = null; 
-            document.getElementById('host-yt-main').style.display = 'none';
-            document.getElementById('host-yt-main').src = "";
-            broadcastSyncState();
-
             if(select.value === "") return;
             if(select.value === "ext-cam") { isMainVideo = 'ext-cam'; return; }
 
@@ -381,17 +328,11 @@
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; const v = document.getElementById('main-video'); 
                 v.src = url; v.play().catch(()=>{});
-            } else { document.getElementById('main-img').src = url; }
+            } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
         function switchWipeMedia() {
             const select = document.getElementById('wipe-file-select');
-            
-            isWipeVideo = false; syncState.wipeYt = null;
-            document.getElementById('host-yt-wipe').style.display = 'none';
-            document.getElementById('host-yt-wipe').src = "";
-            broadcastSyncState();
-
             if(select.value === "") return;
             if(select.value === "ext-cam") { isWipeVideo = 'ext-cam'; toggleWipe(true); return; }
 
@@ -400,7 +341,7 @@
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; const v = document.getElementById('wipe-video'); 
                 v.src = url; v.play().catch(()=>{});
-            } else { document.getElementById('wipe-img').src = url; }
+            } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
             toggleWipe(true);
         }
 
@@ -459,7 +400,6 @@
         function toggleWipe(show) {
             if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
             else if(!show && wipeState.status === 'VISIBLE') { wipeState.status = 'OUT'; wipeState.progress = 1; }
-            syncState.wipeVisible = show; broadcastSyncState();
         }
         function activateInfo(type) {
             if(infoState.status === 'HIDDEN') { infoState.active = type; infoState.status = 'IN'; infoState.progress = 0; } 
@@ -493,15 +433,11 @@
             const dt = (time - lastUpdate) / 1000;
             lastUpdate = time;
 
-            if (isMainVideo === 'youtube') {
-                compCtx.clearRect(0, 0, 1920, 1080);
-            } else {
-                compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
-                let mainMedia;
-                if (isMainVideo === 'ext-cam') mainMedia = document.getElementById('ext-cam-video');
-                else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
-                drawImageCover(compCtx, mainMedia, 0, 0, 1920, 1080);
-            }
+            compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
+            let mainMedia;
+            if (isMainVideo === 'ext-cam') mainMedia = document.getElementById('ext-cam-video');
+            else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
+            drawImageCover(compCtx, mainMedia, 0, 0, 1920, 1080);
 
             if(logoState && logoImg.src && logoImg.width) {
                 const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
@@ -520,23 +456,15 @@
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                    if (isWipeVideo === 'youtube') {
-                        compCtx.clearRect(fixedX, fixedY, ww, wh);
-                        document.getElementById('host-yt-wipe').style.display = 'block';
-                    } else {
-                        document.getElementById('host-yt-wipe').style.display = 'none';
-                        let wipeMedia;
-                        if (isWipeVideo === 'ext-cam') wipeMedia = document.getElementById('ext-cam-video');
-                        else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                        drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
-                    }
+                    let wipeMedia;
+                    if (isWipeVideo === 'ext-cam') wipeMedia = document.getElementById('ext-cam-video');
+                    else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
                     compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
-                } else {
-                    document.getElementById('host-yt-wipe').style.display = 'none';
                 }
                 if(wipeState.status === 'IN' || wipeState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh); }
                 compCtx.restore();
-            } else { document.getElementById('host-yt-wipe').style.display = 'none'; }
+            }
 
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
@@ -707,16 +635,13 @@
                 });
 
                 peer.on('connection', (conn) => {
-                    viewerConns.push(conn);
                     conn.on('data', (data) => {
                         if (data && data.type === 'HELLO_HOST') {
                             document.getElementById('p2p-status').innerText = "Viewer Connected!";
                             document.getElementById('p2p-status').style.color = "yellow";
                             peer.call(data.viewerId, mixedStream);
-                            conn.send({ type: 'SYNC_STATE', state: syncState });
                         }
                     });
-                    conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
 
                 requestAnimationFrame(renderLoop);
@@ -766,30 +691,6 @@
             const conn = peer.connect(targetHostId, { reliable: true });
             
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            conn.on('data', (data) => {
-                if (data.type === 'SYNC_STATE') {
-                    const s = data.state;
-                    const vMain = document.getElementById('viewer-yt-main');
-                    const vWipe = document.getElementById('viewer-yt-wipe');
-                    const vVideo = document.getElementById('viewer-video');
-
-                    if(s.mainYt) {
-                        if(!vMain.src.includes(s.mainYt)) vMain.src = `https://www.youtube.com/embed/${s.mainYt}?autoplay=1&mute=1`;
-                        vMain.style.display = 'block';
-                        vVideo.classList.add('blend-screen');
-                    } else {
-                        vMain.style.display = 'none'; vMain.src = "";
-                        vVideo.classList.remove('blend-screen');
-                    }
-
-                    if(s.wipeYt && s.wipeVisible) {
-                        if(!vWipe.src.includes(s.wipeYt)) vWipe.src = `https://www.youtube.com/embed/${s.wipeYt}?autoplay=1&mute=1`;
-                        vWipe.style.display = 'block';
-                    } else {
-                        vWipe.style.display = 'none'; vWipe.src = "";
-                    }
-                }
-            });
             conn.on('error', () => { alert("接続エラー"); });
         }
 
