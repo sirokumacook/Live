@@ -49,6 +49,7 @@
         }
 
         #preview-wrapper { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #composite-canvas { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 2; pointer-events: none; }
 
         #controls {
             background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
@@ -66,6 +67,8 @@
         .media-track-btn.active { border-color: var(--wrc-orange); color: var(--wrc-orange); background: rgba(255,87,34,0.1); font-weight: bold; }
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
+
+        .hidden-media { position: fixed; top: 10px; left: 10px; width: 10px; height: 10px; opacity: 0.01; pointer-events: none; z-index: 9999; }
     </style>
 </head>
 <body>
@@ -75,7 +78,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 19.0.0 (STABLE CAM & SIGNAL FIX)</div>
+        <div id="version-text">VER 20.0.0 (HD CAM & ANIMATION FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -103,7 +106,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (Standard HD)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready (MAX Quality)</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -142,6 +145,11 @@
                     <button class="btn-small" onclick="toggleLogo(true)" style="border-color: #e91e63; color: #e91e63;">LOGO ON</button>
                     <button class="btn-small" onclick="toggleLogo(false)" style="border-color: gray; color: gray;">OFF</button>
                 </div>
+            </div>
+
+            <div class="control-group" id="cam-control-group" style="display:none; border-color: #e91e63; min-width: 150px;">
+                <h3 style="color: #e91e63; border-color: #e91e63;">EXTERNAL CAM</h3>
+                <button class="btn-small" onclick="disconnectExtCamHost()" style="border-color: #e91e63; color: #e91e63; width: 100%; font-weight: bold;">DISCONNECT CAM</button>
             </div>
 
             <div class="control-group" style="border-color: #00bcd4; min-width: 150px;">
@@ -212,7 +220,7 @@
 
     <script>
         // ==========================================
-        // 0. 通信設定 (Google STUNサーバーで接続貫通力をMAXに)
+        // 0. 通信設定
         // ==========================================
         const peerConfig = {
             config: {
@@ -223,7 +231,6 @@
             }
         };
 
-        // 全画面化API
         function toggleFullScreen() {
             const video = document.getElementById('viewer-video');
             if (video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); return; }
@@ -372,6 +379,8 @@
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = null, isWipeVideo = null;
         let activeMainMedia = null, activeWipeMedia = null, activeBgmMedia = null;
+        
+        let extCamCall = null;
         let extCamConnected = false; 
 
         function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
@@ -538,6 +547,23 @@
             setTimeout(() => { location.reload(); }, 500);
         }
 
+        // --- カメラ切断（削除）機能 ---
+        function disconnectExtCamHost() {
+            if(extCamCall) { extCamCall.close(); extCamCall = null; }
+            extCamConnected = false;
+            document.getElementById('cam-control-group').style.display = 'none';
+            
+            const extVideo = document.getElementById('ext-cam-video');
+            if(extVideo) extVideo.srcObject = null;
+            
+            if (isMainVideo === 'ext-cam') switchMainMedia(0);
+            if (isWipeVideo === 'ext-cam') { isWipeVideo = null; activeWipeMedia = null; toggleWipe(false); }
+            
+            populateButtons('main', mainFiles);
+            populateButtons('wipe', wipeFiles);
+        }
+
+
         // ==========================================
         // 3. RADIO (MIC) 機能
         // ==========================================
@@ -625,24 +651,18 @@
 
         function renderLoop(time) {
             requestAnimationFrame(renderLoop);
-            const dt = (time - lastUpdate) / 1000;
+            
+            // アニメーションのワープ（一瞬で終わる現象）を防ぐためのリミッター
+            let dt = (time - lastUpdate) / 1000;
+            if(dt > 0.1) dt = 0.1; 
             lastUpdate = time;
-
-            const extCamVideo = document.getElementById('ext-cam-video');
-            if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) {
-                extCamVideo.play().catch(()=>{});
-            }
 
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
             let mainMedia;
-            if (isMainVideo === 'ext-cam') {
-                mainMedia = extCamVideo;
-            } else {
-                mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
-            }
+            if (isMainVideo === 'ext-cam') mainMedia = document.getElementById('ext-cam-video');
+            else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             
-            // 映像ストリーム未受信状態なら「待機中」を表示
             if (isMainVideo === 'ext-cam' && (!mainMedia || mainMedia.videoWidth === 0)) {
                 compCtx.fillStyle = '#111';
                 compCtx.fillRect(0, 0, 1920, 1080);
@@ -704,7 +724,7 @@
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
                     let wipeMedia;
-                    if (isWipeVideo === 'ext-cam') wipeMedia = extCamVideo;
+                    if (isWipeVideo === 'ext-cam') wipeMedia = document.getElementById('ext-cam-video');
                     else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
                     
                     if (isWipeVideo === 'ext-cam' && (!wipeMedia || wipeMedia.videoWidth === 0)) {
@@ -836,10 +856,12 @@
                 const mainVideo = document.getElementById('main-video');
                 const wipeVideo = document.getElementById('wipe-video');
                 const bgmPlayer = document.getElementById('bgm-player');
+                const extCamVideo = document.getElementById('ext-cam-video');
                 
                 audioNodes.main = audioCtx.createMediaElementSource(mainVideo);
                 audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo);
                 audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
+                audioNodes.ext = audioCtx.createMediaElementSource(extCamVideo);
 
                 Object.values(audioNodes).forEach(src => {
                     src.connect(audioMixerDest);
@@ -881,21 +903,23 @@
 
                 peer.on('call', (call) => {
                     if (call.metadata && call.metadata.type === 'ext-cam') {
+                        extCamCall = call;
                         call.answer(); 
                         call.on('stream', (remoteStream) => {
+                            if(extCamConnected) return; 
+                            
                             const extVideo = document.getElementById('ext-cam-video');
-                            // 映像データを確実に上書きして再生させる（PeerJSの2回発火対策）
                             extVideo.srcObject = remoteStream;
-                            extVideo.onloadedmetadata = () => { extVideo.play().catch(()=>{}); };
                             extVideo.play().catch(()=>{});
 
-                            if (!extCamConnected) {
-                                extCamConnected = true;
-                                populateButtons('main', mainFiles);
-                                populateButtons('wipe', wipeFiles);
-                                alert("📱 EXTERNAL CAMERA CONNECTED!");
-                            }
+                            extCamConnected = true;
+                            document.getElementById('cam-control-group').style.display = 'flex';
+                            populateButtons('main', mainFiles);
+                            populateButtons('wipe', wipeFiles);
+                            
+                            alert("📱 EXTERNAL CAMERA CONNECTED!");
                         });
+                        call.on('close', () => { disconnectExtCamHost(); });
                     }
                 });
 
@@ -962,18 +986,21 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
+                // フルHD(1920x1080)の最高画質を強制作動させる
+                const constraints = { 
+                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                    audio: true 
+                };
+                
                 try {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: 'environment' }, // スマホの標準画質に任せる（エラー回避最優先）
-                        audio: true 
-                    });
+                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
                 } catch(e) {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
                 }
 
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready. Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (FULL HD). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
@@ -986,6 +1013,7 @@
             
             const call = peer.call(targetHostId, extCamStream, { metadata: { type: 'ext-cam' } });
             call.on('stream', () => {}); 
+            call.on('close', () => { alert("ホストから切断されました"); location.reload(); });
             
             document.getElementById('extcam-ui').style.display = 'none';
         }
