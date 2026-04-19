@@ -80,7 +80,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 8.1.0 (STARTUP CRASH FIX)</div>
+        <div id="version-text">VER 8.2.0 (WEATHER BUG FIXED)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -280,7 +280,28 @@
         window.addEventListener('resize', resizePreview);
 
         // ==========================================
-        // 1. YouTube Sync & メディア制御
+        // 1. 天気取得システム (再実装箇所)
+        // ==========================================
+        let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
+        function fetchWeatherInBackground() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                try {
+                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current_weather=true`);
+                    const cw = (await res.json()).current_weather;
+                    const c = cw.weathercode;
+                    let condStr = 'STORM';
+                    if(c===0) condStr='CLEAR'; else if(c<=3) condStr='CLOUDY'; else if(c<=48) condStr='FOG'; else if(c<=67) condStr='RAIN'; else if(c<=77) condStr='SNOW';
+                    const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+                    const dir = dirs[Math.round(cw.winddirection/45)%8];
+                    weatherData = { cond: condStr, temp: `${cw.temperature} °C`, wind: `${dir} / ${cw.windspeed} km/h` };
+                } catch(e) {}
+            }, () => {}, { timeout: 10000 });
+        }
+        setInterval(fetchWeatherInBackground, 60000);
+
+        // ==========================================
+        // 2. YouTube Sync & メディア制御
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
@@ -434,7 +455,6 @@
         let wipeState = { status: 'HIDDEN', progress: 0 };
         let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; 
         let scheduleState = { status: 'HIDDEN', progress: 0, time: '', text: '' };
-        let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
 
         function toggleWipe(show) {
             if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
@@ -648,7 +668,6 @@
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
                 
-                // キャンバス事前描画（InvalidStateError回避の最強手法）
                 streamCtx.fillStyle = '#000'; streamCtx.fillRect(0, 0, 1920, 1080);
                 compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
 
