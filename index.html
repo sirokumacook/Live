@@ -32,6 +32,10 @@
         .ui-panel { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
         .fullscreen-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
         
+        #unmute-btn {
+            display: none; position: absolute; top: 20px; right: 20px; z-index: 1000;
+            padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: none; font-size: 16px; cursor: pointer;
+        }
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
@@ -68,12 +72,11 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
 
-        /* ブラウザのフリーズ回避用：画面外ではなく、画面の左上に極小・透明で配置する */
+        /* 動画フリーズ＆真っ黒化回避：画面外ではなく、画面の端に透明にして配置し、ブラウザの省エネ処理を騙す */
         .hidden-media { 
-            position: absolute; top: 0; left: 0; 
-            width: 2px; height: 2px; opacity: 0.01; 
+            position: fixed; top: 10px; left: 10px; 
+            width: 320px; height: 180px; opacity: 0.01; 
             pointer-events: none; z-index: -999; 
-            transform: translateZ(0); /* ハードウェアアクセラレーションを強制 */
         }
     </style>
 </head>
@@ -84,7 +87,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 14.0.0 (FULL-HD CAM & ANTI-FREEZE)</div>
+        <div id="version-text">VER 14.1.0 (BLACK SCREEN & MULTI-CAM FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -225,7 +228,7 @@
             }
         }
 
-        const dbName = "WrcBroadcastDB7";
+        const dbName = "WrcBroadcastDB8";
         let db;
         let viewerConns = [];
 
@@ -518,7 +521,7 @@
         function toggleLogo(show) { logoState = show; }
 
         // ==========================================
-        // 4. 配信終了機能
+        // 4. 配信終了機能 
         // ==========================================
         function endBroadcast() {
             const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
@@ -575,9 +578,11 @@
             const dt = (time - lastUpdate) / 1000;
             lastUpdate = time;
 
-            // 外部カメラのフリーズ防止（強制的に監視・再生）
+            // 外部カメラのフリーズ防止（強制再生パルス）
             extCams.forEach(cam => {
-                if (cam.videoEl && cam.videoEl.paused) cam.videoEl.play().catch(()=>{});
+                if (cam.videoEl && cam.videoEl.paused) {
+                    cam.videoEl.play().catch(()=>{});
+                }
             });
 
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
@@ -797,7 +802,12 @@
                             v.playsInline = true;
                             v.muted = true;
                             v.srcObject = remoteStream;
-                            v.onloadedmetadata = () => { v.play().catch(()=>{}); };
+                            
+                            // カメラが受信されたら確実に再生させる
+                            v.addEventListener('loadedmetadata', () => {
+                                v.play().catch(e => console.warn("ExtCam Play Error:", e));
+                            });
+                            
                             document.getElementById('media-pool').appendChild(v);
 
                             if (audioCtx && audioMixerDest) {
@@ -851,7 +861,8 @@
                         const video = document.getElementById('viewer-video');
                         video.style.display = 'block';
                         video.srcObject = remoteStream;
-                        // ボタンを表示 (コンテナごと)
+                        
+                        // フルスクリーン＆消音解除ボタン群を表示する
                         document.getElementById('viewer-top-controls').style.display = 'flex';
                     });
                 });
@@ -882,7 +893,7 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // カメラをフルHD画質(1920x1080)で要求
+                // カメラをフルHD(1920x1080)の高画質で要求
                 extCamStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'environment',
