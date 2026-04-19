@@ -32,10 +32,6 @@
         .ui-panel { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
         .fullscreen-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
         
-        #unmute-btn {
-            display: none; position: absolute; top: 20px; right: 20px; z-index: 1000;
-            padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: none; font-size: 16px; cursor: pointer;
-        }
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
@@ -72,7 +68,12 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
 
-        .hidden-media { position: fixed; top: -9999px; left: -9999px; width: 1280px; height: 720px; z-index: -9999; }
+        /* ブラウザの省エネ（フリーズ）回避用：画面内に極小・透明で配置する */
+        .hidden-media { 
+            position: absolute; top: 0; left: 0; 
+            width: 10px; height: 10px; opacity: 0.01; 
+            pointer-events: none; z-index: -999; 
+        }
     </style>
 </head>
 <body>
@@ -82,7 +83,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 13.0.0 (MULTI-CAM SUPPORT)</div>
+        <div id="version-text">VER 13.1.0 (MULTI-CAM FIX & UI RESTORED)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -98,8 +99,8 @@
         <video id="viewer-video" class="fullscreen-video" controls autoplay playsinline muted style="display: none; background: #000; z-index: 2;"></video>
         
         <div id="viewer-top-controls" style="display: none; position: absolute; top: 20px; right: 20px; z-index: 1000; gap: 10px;">
-            <button onclick="toggleFullScreen()" style="padding: 15px 20px; background: rgba(10, 25, 47, 0.8); color: #fff; border: 2px solid var(--wrc-orange); font-size: 16px; cursor: pointer; font-weight: bold; font-family: 'WRCCleanBold', sans-serif;">⛶ FULLSCREEN</button>
-            <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';" style="padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: 2px solid var(--wrc-orange); font-size: 16px; cursor: pointer; font-weight: bold; font-family: 'WRCCleanBold', sans-serif;">🔊 UNMUTE AUDIO</button>
+            <button onclick="toggleFullScreen()" class="btn" style="padding: 10px 15px; font-size: 16px; margin: 0; background: rgba(10, 25, 47, 0.8);">⛶ FULLSCREEN</button>
+            <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';" class="btn" style="padding: 10px 15px; font-size: 16px; margin: 0; background: var(--wrc-orange); color: #fff;">🔊 UNMUTE AUDIO</button>
         </div>
     </div>
 
@@ -235,7 +236,7 @@
                     if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
                 };
                 req.onsuccess = e => { db = e.target.result; resolve(); };
-                req.onerror = e => { resolve(); }; 
+                req.onerror = e => { console.warn("IndexedDB Error", e); resolve(); }; 
             });
         }
 
@@ -276,6 +277,7 @@
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
 
+                // Auto DJ 連鎖再生
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
             } catch(e) {}
         };
@@ -437,7 +439,6 @@
             resumeAudio();
             updateActiveButton('main-btn-list', btnElement);
 
-            // カメラIDが渡された場合
             if(typeof idxOrId === 'string' && idxOrId.startsWith('ext-cam-')) { 
                 isMainVideo = idxOrId; 
                 return; 
@@ -580,7 +581,7 @@
 
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
-            // MAIN メディア描画 (マルチカメラ対応)
+            // MAIN メディア描画
             let mainMedia;
             if (typeof isMainVideo === 'string' && isMainVideo.startsWith('ext-cam-')) {
                 mainMedia = document.getElementById(isMainVideo);
@@ -606,7 +607,7 @@
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                    // WIPE メディア描画 (マルチカメラ対応)
+                    // WIPE メディア描画
                     let wipeMedia;
                     if (typeof isWipeVideo === 'string' && isWipeVideo.startsWith('ext-cam-')) {
                         wipeMedia = document.getElementById(isWipeVideo);
@@ -784,24 +785,23 @@
                     if (call.metadata && call.metadata.type === 'ext-cam') {
                         call.answer(); 
                         call.on('stream', (remoteStream) => {
-                            // 既に登録されているストリームなら無視
                             if (extCams.some(c => c.stream.id === remoteStream.id)) return;
 
                             const camId = 'ext-cam-' + extCamCounter;
                             const camName = '📱 CAM ' + extCamCounter;
                             extCamCounter++;
                             
-                            // カメラ用の専用ビデオ要素を生成
                             const v = document.createElement('video');
                             v.id = camId;
                             v.className = 'hidden-media';
                             v.autoplay = true;
                             v.playsInline = true;
-                            v.muted = true; // ローカルループバック防止
+                            v.muted = true;
                             v.srcObject = remoteStream;
+                            // カメラがフリーズしないようメタデータロード後に強制的再生
+                            v.onloadedmetadata = () => { v.play().catch(e=>console.warn(e)); };
                             document.getElementById('media-pool').appendChild(v);
 
-                            // 音声をミキサーに直接流し込む
                             if (audioCtx && audioMixerDest) {
                                 try {
                                     const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
@@ -810,7 +810,6 @@
                                 } catch(e) {}
                             }
 
-                            // 配列に保存してUIを更新
                             extCams.push({ id: camId, name: camName, stream: remoteStream, videoEl: v });
                             
                             populateButtons('main', mainFiles);
@@ -854,7 +853,8 @@
                         const video = document.getElementById('viewer-video');
                         video.style.display = 'block';
                         video.srcObject = remoteStream;
-                        document.getElementById('unmute-btn').style.display = 'block';
+                        // 復活させたコントロールボタン群を表示
+                        document.getElementById('viewer-top-controls').style.display = 'flex';
                     });
                 });
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
