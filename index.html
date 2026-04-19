@@ -49,7 +49,6 @@
         }
 
         #preview-wrapper { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        #composite-canvas { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 2; pointer-events: none; }
 
         #controls {
             background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
@@ -67,13 +66,6 @@
         .media-track-btn.active { border-color: var(--wrc-orange); color: var(--wrc-orange); background: rgba(255,87,34,0.1); font-weight: bold; }
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
-
-        /* 絶対に映像をフリーズさせないための最強ハック：最前面に透明で配置 */
-        .hidden-media { 
-            position: fixed; top: 10px; left: 10px; 
-            width: 10px; height: 10px; opacity: 0.01; 
-            pointer-events: none; z-index: 9999; 
-        }
     </style>
 </head>
 <body>
@@ -83,7 +75,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 18.0.0 (ULTIMATE CAM FIX & RADIO)</div>
+        <div id="version-text">VER 19.0.0 (STABLE CAM & SIGNAL FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -111,7 +103,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (FULL HD)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready (Standard HD)</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -123,8 +115,17 @@
 
         <div id="preview-wrapper">
             <div class="scale-area" id="host-scale-area">
-                <canvas id="composite-canvas" width="1920" height="1080"></canvas>
-                <canvas id="stream-canvas" style="display:none;" width="1920" height="1080"></canvas>
+                <div id="media-pool" style="position: absolute; top:0; left:0; width:1920px; height:1080px; z-index:1; overflow: hidden;">
+                    <video id="main-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="main-img" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <video id="wipe-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="wipe-img" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <audio id="bgm-player"></audio>
+                    <video id="ext-cam-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                </div>
+                
+                <canvas id="composite-canvas" width="1920" height="1080" style="position: absolute; top:0; left:0; z-index: 2; pointer-events: none;"></canvas>
+                <canvas id="stream-canvas" width="1920" height="1080" style="display:none;"></canvas>
             </div>
         </div>
 
@@ -206,15 +207,6 @@
                 </div>
                 <button class="btn-small" onclick="stopBgm()" style="border-color: gray; color: gray; width: 100%; margin-top: 5px;">STOP ALL</button>
             </div>
-        </div>
-
-        <div id="media-pool">
-            <video id="main-video" class="hidden-media" loop playsinline></video>
-            <img id="main-img" class="hidden-media">
-            <video id="wipe-video" class="hidden-media" loop playsinline></video>
-            <img id="wipe-img" class="hidden-media">
-            <audio id="bgm-player" class="hidden-media"></audio>
-            <video id="ext-cam-video" class="hidden-media" autoplay playsinline muted></video>
         </div>
     </div>
 
@@ -375,7 +367,7 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. ワンタップメディア ＆ 外部カメラエンジン (1台のみ安定版)
+        // 2. ワンタップメディア ＆ 外部カメラエンジン
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = null, isWipeVideo = null;
@@ -650,7 +642,7 @@
                 mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             }
             
-            // 映像がまだ受信できていない（幅0）の場合は待機テキストを出す
+            // 映像ストリーム未受信状態なら「待機中」を表示
             if (isMainVideo === 'ext-cam' && (!mainMedia || mainMedia.videoWidth === 0)) {
                 compCtx.fillStyle = '#111';
                 compCtx.fillRect(0, 0, 1920, 1080);
@@ -891,25 +883,18 @@
                     if (call.metadata && call.metadata.type === 'ext-cam') {
                         call.answer(); 
                         call.on('stream', (remoteStream) => {
-                            if(extCamConnected) return; 
-                            
                             const extVideo = document.getElementById('ext-cam-video');
+                            // 映像データを確実に上書きして再生させる（PeerJSの2回発火対策）
                             extVideo.srcObject = remoteStream;
                             extVideo.onloadedmetadata = () => { extVideo.play().catch(()=>{}); };
+                            extVideo.play().catch(()=>{});
 
-                            if (audioCtx && audioMixerDest) {
-                                try {
-                                    const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
-                                    streamSrc.connect(audioMixerDest);
-                                    streamSrc.connect(audioCtx.destination);
-                                } catch(e) {}
+                            if (!extCamConnected) {
+                                extCamConnected = true;
+                                populateButtons('main', mainFiles);
+                                populateButtons('wipe', wipeFiles);
+                                alert("📱 EXTERNAL CAMERA CONNECTED!");
                             }
-
-                            extCamConnected = true;
-                            populateButtons('main', mainFiles);
-                            populateButtons('wipe', wipeFiles);
-                            
-                            alert("📱 EXTERNAL CAMERA CONNECTED!");
                         });
                     }
                 });
@@ -977,20 +962,18 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
-                    audio: true 
-                };
-                
                 try {
-                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    extCamStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' }, // スマホの標準画質に任せる（エラー回避最優先）
+                        audio: true 
+                    });
                 } catch(e) {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 }
 
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (FULL HD). Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready. Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
