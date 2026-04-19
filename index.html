@@ -28,12 +28,11 @@
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
-        /* ----- 放送モード: 新レイアウト ----- */
+        /* ----- 放送モード: 3画面レイアウト ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; position: relative; z-index: 10; background: #000; }
         #broadcast-info { position: absolute; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.7); padding: 10px; font-size: 18px; color: yellow; border: 2px solid yellow; letter-spacing: 2px; }
 
-        /* 3画面プレビュー領域 */
-        #preview-wrapper { flex: 1; display: flex; background: #000; overflow: hidden; padding: 10px; gap: 10px; }
+        #preview-wrapper { flex: 1; display: flex; background: #000; overflow: hidden; padding: 10px; gap: 10px; position: relative; }
         #main-preview-area { flex: 7; position: relative; background: #0a0a0a; border: 2px solid var(--wrc-navy); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         #side-preview-area { flex: 3; display: flex; flex-direction: column; gap: 10px; }
         .side-box { flex: 1; position: relative; background: #0a0a0a; border: 2px solid var(--wrc-navy); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -56,6 +55,9 @@
         .media-track-btn.active { border-color: var(--wrc-orange); color: var(--wrc-orange); background: rgba(255,87,34,0.1); font-weight: bold; }
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
+        
+        /* 映像読み込み用プール（ブラウザ騙し用：背景として見えないよう透明度を下げる） */
+        .hidden-media-container { position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: 1; }
     </style>
 </head>
 <body>
@@ -65,7 +67,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 27.0.0 (ULTIMATE STABILITY FIX)</div>
+        <div id="version-text">VER 26.1.0 (PRO MONITOR & BACKGROUND FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -91,7 +93,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (Stable HD)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready (FULL HD)</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -103,14 +105,14 @@
 
         <div id="preview-wrapper">
             
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1;">
+            <div class="hidden-media-container">
                 <div id="media-pool" style="width: 1920px; height: 1080px; position: relative;">
-                    <video id="main-video" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <video id="main-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
                     <img id="main-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
-                    <video id="wipe-video" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <video id="wipe-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
                     <img id="wipe-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
                     <audio id="bgm-player"></audio>
-                    <video id="ext-cam-video" autoplay playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <video id="ext-cam-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
                 </div>
             </div>
 
@@ -122,7 +124,7 @@
             <div id="side-preview-area" style="z-index: 5;">
                 <div class="side-box" id="extcam-monitor-box">
                     <div class="preview-label" style="background: #e91e63;">EXT CAM MONITOR</div>
-                    <video id="extcam-monitor-video" class="preview-media" autoplay playsinline muted style="transform: scaleX(-1);"></video>
+                    <video id="extcam-monitor-video" class="preview-media" autoplay playsinline muted></video>
                     <div id="extcam-offline-text" style="color: gray; font-size: 14px; position: absolute;">NO CAMERA SIGNAL</div>
                 </div>
                 <div class="side-box" id="final-monitor-box">
@@ -248,7 +250,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB15";
+        const dbName = "WrcBroadcastDB16";
         let db;
         let viewerConns = [];
 
@@ -302,7 +304,6 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
-
             } catch(e) {}
         };
 
@@ -453,8 +454,7 @@
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; const v = document.getElementById('main-video'); 
-                v.src = url; v.muted = false; 
-                v.play().catch(()=>{});
+                v.src = url; v.muted = false; v.play().catch(()=>{});
             } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
@@ -472,8 +472,7 @@
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; const v = document.getElementById('wipe-video'); 
-                v.src = url; v.muted = false;
-                v.play().catch(()=>{});
+                v.src = url; v.muted = false; v.play().catch(()=>{});
             } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
             toggleWipe(true);
         }
@@ -487,7 +486,6 @@
             }
             activeBgmMedia = idx;
             updateActiveButton('bgm-btn-list', btnElement);
-
             const player = document.getElementById('bgm-player');
             player.src = URL.createObjectURL(bgmFiles[idx]);
             player.play().catch(()=>{});
@@ -507,10 +505,8 @@
         let targetFPS = 24;
         function setFPS(fps) {
             targetFPS = fps; saveSetting('wrc_fps', fps);
-            
             const fpsLabel = document.getElementById('stream-fps-label');
             if(fpsLabel) fpsLabel.innerText = fps;
-
             if(fps === 24) {
                 document.getElementById('fps-24-btn').style.borderColor = '#4CAF50'; document.getElementById('fps-24-btn').style.color = '#4CAF50';
                 document.getElementById('fps-60-btn').style.borderColor = 'gray'; document.getElementById('fps-60-btn').style.color = 'gray';
@@ -542,15 +538,12 @@
             extCamConnected = false;
             document.getElementById('cam-control-group').style.display = 'none';
             document.getElementById('extcam-offline-text').style.display = 'block';
-
             const extVideo = document.getElementById('ext-cam-video');
             const monitorVideo = document.getElementById('extcam-monitor-video');
             if(extVideo) extVideo.srcObject = null;
             if(monitorVideo) monitorVideo.srcObject = null;
-            
             if (isMainVideo === 'ext-cam') switchMainMedia(0);
             if (isWipeVideo === 'ext-cam') { isWipeVideo = null; activeWipeMedia = null; toggleWipe(false); }
-            
             populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
         }
 
@@ -570,24 +563,17 @@
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     if(!audioCtx) initAudioMixer(); 
-                    
                     micNode = audioCtx.createMediaStreamSource(micStream);
                     analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 64; 
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    
                     micNode.connect(analyser);
                     if (micGain) analyser.connect(micGain); 
-                    
-                    radioState.status = 'IN';
-                    radioState.progress = 0;
-                } catch(e) {
-                    alert("マイクのアクセスが拒否されました");
-                }
+                    radioState.status = 'IN'; radioState.progress = 0;
+                } catch(e) { alert("マイクのアクセスが拒否されました"); }
             } else {
                 if (radioState.status === 'HIDDEN' || radioState.status === 'OUT') return;
-                radioState.status = 'OUT';
-                radioState.progress = 1;
+                radioState.status = 'OUT'; radioState.progress = 1;
             }
         }
 
@@ -640,7 +626,6 @@
             if(dt > 0.1) dt = 0.1;
             lastUpdate = time;
 
-            // オーディオの可視状態連動
             if (audioCtx) {
                 if (mainGain) mainGain.gain.value = (isMainVideo === true) ? 1 : 0;
                 if (wipeGain) wipeGain.gain.value = (isWipeVideo === true && wipeState.status !== 'HIDDEN') ? 1 : 0;
@@ -648,25 +633,18 @@
                     let isExtVisible = (isMainVideo === 'ext-cam') || (isWipeVideo === 'ext-cam' && wipeState.status !== 'HIDDEN');
                     extCamGain.gain.value = isExtVisible ? 1 : 0;
                 }
-                if (micGain) {
-                    micGain.gain.value = (radioState.status !== 'HIDDEN') ? 1 : 0;
-                }
+                if (micGain) micGain.gain.value = (radioState.status !== 'HIDDEN') ? 1 : 0;
             }
 
             const extCamVideo = document.getElementById('ext-cam-video');
-            // フリーズ防止マッサージ
             if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
 
-            // ==================
-            // 左側プレビューの描画 (60FPS / NO LOGO)
-            // ==================
+            // --- 左側プレビュー描画 ---
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
-            
             let mainMedia;
             if (isMainVideo === 'ext-cam') mainMedia = extCamVideo;
             else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             
-            // readyStateが2(データ取得済み)未満なら待機中とみなす
             if (isMainVideo === 'ext-cam' && (!mainMedia || mainMedia.readyState < 2)) {
                 compCtx.fillStyle = '#111'; compCtx.fillRect(0, 0, 1920, 1080);
                 compCtx.fillStyle = '#ff5722'; compCtx.font = "40px WRCCleanBold"; compCtx.textAlign = "center";
@@ -678,41 +656,25 @@
             const animSpeed = 2.5;
             const fixedX = 50, fixedY = 800; 
 
-            // RADIO (MIC)
+            // RADIO
             if (radioState.status !== 'HIDDEN') {
-                if(radioState.status === 'IN') { 
-                    radioState.progress += dt*animSpeed; 
-                    if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} 
-                }
-                else if(radioState.status === 'OUT') { 
-                    radioState.progress -= dt*animSpeed; 
-                    if(radioState.progress<=0){
-                        radioState.status='HIDDEN';
-                        if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-                        if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
-                    } 
-                }
-                
+                if(radioState.status === 'IN') { radioState.progress += dt*animSpeed; if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} }
+                else if(radioState.status === 'OUT') { radioState.progress -= dt*animSpeed; if(radioState.progress<=0){ radioState.status='HIDDEN'; if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; } } }
                 const rw = 400, rh = 100, rx = 50, ry = 650;
                 const blockX = rx - rw + (rw * 2) * radioState.progress;
-                
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
                 if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
                     compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
                     compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                    
                     compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
                     compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
-
                     if (analyser && dataArray) {
                         analyser.getByteFrequencyData(dataArray);
                         const barWidth = 8; const gap = 4; const startX = rx + 200;
                         for (let i = 0; i < 16; i++) {
-                            const val = dataArray[i];
-                            const targetHeight = Math.max((val / 255) * 60, 4); 
+                            const val = dataArray[i]; const targetHeight = Math.max((val / 255) * 60, 4); 
                             smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
-                            compCtx.fillStyle = '#ff5722';
-                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
+                            compCtx.fillStyle = '#ff5722'; compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
                         }
                     }
                 }
@@ -720,131 +682,55 @@
                 compCtx.restore();
             }
 
-            // WIPE
+            // WIPE, TEXT, SCHEDULE 描画
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
-                
-                const ww = 480, wh = 270;
-                const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
+                const ww = 480, wh = 270; const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
-                
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                    let wipeMedia;
-                    if (isWipeVideo === 'ext-cam') wipeMedia = extCamVideo;
-                    else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                    
-                    if (isWipeVideo === 'ext-cam' && (!wipeMedia || wipeMedia.readyState < 2)) {
-                        compCtx.fillStyle = '#111'; compCtx.fillRect(fixedX, fixedY, ww, wh);
-                    } else {
-                        drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
-                    }
+                    let wipeMedia; if (isWipeVideo === 'ext-cam') wipeMedia = extCamVideo; else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    if (isWipeVideo === 'ext-cam' && (!wipeMedia || wipeMedia.readyState < 2)) { compCtx.fillStyle = '#111'; compCtx.fillRect(fixedX, fixedY, ww, wh); }
+                    else { drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh); }
                     compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
                 }
                 if(wipeState.status === 'IN' || wipeState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh); }
                 compCtx.restore();
             }
-
-            // TEXT & WEATHER
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
-                else if(infoState.status === 'OUT') { 
-                    infoState.progress -= dt*animSpeed; 
-                    if(infoState.progress<=0) {
-                        if(infoState.next){ infoState.active = infoState.next; infoState.next = null; infoState.status = 'IN'; infoState.progress = 0; }
-                        else { infoState.status = 'HIDDEN'; }
-                    }
-                }
-                
-                let iw = 480, ih = 100;
-                let textStr = "";
-                if(infoState.active === 'text') {
-                    textStr = document.getElementById('overlay-text-input').value || " ";
-                    compCtx.font = "48px WRCCleanBold"; iw = Math.min(compCtx.measureText(textStr).width + 60, 1000); ih = 100;
-                } else if(infoState.active === 'weather') { iw = 450; ih = 180; }
-
+                else if(infoState.status === 'OUT') { infoState.progress -= dt*animSpeed; if(infoState.progress<=0){ if(infoState.next){ infoState.active = infoState.next; infoState.next = null; infoState.status = 'IN'; infoState.progress = 0; } else { infoState.status = 'HIDDEN'; } } }
+                let iw = 480, ih = 100; let textStr = ""; if(infoState.active === 'text') { textStr = document.getElementById('overlay-text-input').value || " "; compCtx.font = "48px WRCCleanBold"; iw = Math.min(compCtx.measureText(textStr).width + 60, 1000); ih = 100; } else if(infoState.active === 'weather') { iw = 450; ih = 180; }
                 const blockX = fixedX - iw + (iw * 2) * infoState.progress;
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, iw, ih); compCtx.clip();
                 if(infoState.progress > 0.5 || infoState.status === 'VISIBLE') {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(fixedX, fixedY, iw, ih);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(fixedX, fixedY, 10, ih); 
-                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                    if(infoState.active === 'text') {
-                        compCtx.font = "48px WRCCleanBold"; compCtx.fillText(textStr, fixedX + 30, fixedY + 25);
-                    } else {
-                        compCtx.fillStyle = '#ff5722'; compCtx.font = "24px WRCCleanBold"; compCtx.fillText("WEATHER CONDITION", fixedX + 30, fixedY + 20);
-                        compCtx.fillStyle = 'rgba(255,255,255,0.2)'; compCtx.fillRect(fixedX + 30, fixedY + 55, iw - 50, 2);
-                        compCtx.fillStyle = '#fff'; compCtx.font = "32px WRCCleanBold";
-                        compCtx.fillText(`COND: ${weatherData.cond}`, fixedX + 30, fixedY + 70);
-                        compCtx.fillText(`TEMP: ${weatherData.temp}`, fixedX + 30, fixedY + 105);
-                        compCtx.fillText(`WIND: ${weatherData.wind}`, fixedX + 30, fixedY + 140);
-                    }
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(fixedX, fixedY, iw, ih); compCtx.fillStyle = '#ff5722'; compCtx.fillRect(fixedX, fixedY, 10, ih); compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
+                    if(infoState.active === 'text') { compCtx.font = "48px WRCCleanBold"; compCtx.fillText(textStr, fixedX + 30, fixedY + 25); }
+                    else { compCtx.fillStyle = '#ff5722'; compCtx.font = "24px WRCCleanBold"; compCtx.fillText("WEATHER CONDITION", fixedX + 30, fixedY + 20); compCtx.fillStyle = 'rgba(255,255,255,0.2)'; compCtx.fillRect(fixedX + 30, fixedY + 55, iw - 50, 2); compCtx.fillStyle = '#fff'; compCtx.font = "32px WRCCleanBold"; compCtx.fillText(`COND: ${weatherData.cond}`, fixedX + 30, fixedY + 70); compCtx.fillText(`TEMP: ${weatherData.temp}`, fixedX + 30, fixedY + 105); compCtx.fillText(`WIND: ${weatherData.wind}`, fixedX + 30, fixedY + 140); }
                 }
                 if(infoState.status === 'IN' || infoState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, iw, ih); }
                 compCtx.restore();
             }
-
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
-
-                const sw = 1250, sh = 130;
-                const sx = (1920 - sw) / 2;
-                const sy = 1080 - sh; 
-                const blockX = sx - sw + (sw * 2) * scheduleState.progress;
-
-                const now = new Date();
-                let targetH = 0, targetM = 0;
-                if (scheduleState.time) {
-                    const parts = scheduleState.time.split(':');
-                    targetH = parseInt(parts[0], 10);
-                    targetM = parseInt(parts[1], 10);
-                }
-                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
-                let diff = targetDate - now;
-                if (diff < 0) diff = 0; 
-                const diffSec = Math.floor(diff / 1000);
-                const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
-                const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
-                const ss = String(diffSec % 60).padStart(2, '0');
-                const countdownStr = `${hh}:${mm}:${ss}`;
-
+                const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; const blockX = sx - sw + (sw * 2) * scheduleState.progress;
+                const now = new Date(); let targetH = 0, targetM = 0; if (scheduleState.time) { const parts = scheduleState.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
+                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0); let diff = targetDate - now; if (diff < 0) diff = 0; 
+                const diffSec = Math.floor(diff / 1000); const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0'); const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0'); const ss = String(diffSec % 60).padStart(2, '0'); const countdownStr = `${hh}:${mm}:${ss}`;
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(sx, sy, sw, sh); compCtx.clip();
                 if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
-
-                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                    compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
-
-                    compCtx.fillStyle = 'rgba(255,255,255,0.3)';
-                    compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
-
-                    compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                    compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
-
-                    compCtx.font = "40px WRCCleanBold";
-                    compCtx.fillText("LOCAL", sx + 510, sy + 70);
-                    const localWidth = compCtx.measureText("LOCAL ").width;
-                    
-                    compCtx.fillStyle = '#fff';
-                    compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh); compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6); compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold"; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle'; compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5); compCtx.fillStyle = 'rgba(255,255,255,0.3)'; compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50); compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top'; compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30); compCtx.font = "40px WRCCleanBold"; compCtx.fillText("LOCAL", sx + 510, sy + 70); const localWidth = compCtx.measureText("LOCAL ").width; compCtx.fillStyle = '#fff'; compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
                 }
                 if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); }
                 compCtx.restore();
             }
 
-            // ==================
-            // 右下へのファイナルストリーム描画 (ターゲットFPS / ロゴあり)
-            // ==================
+            // --- 右下: ファイナル出力描画 ---
             const elapsedStream = time - lastStreamDrawTime;
             if (elapsedStream >= (1000 / targetFPS)) {
                 lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
-                streamCtx.clearRect(0,0,1920,1080);
-                streamCtx.drawImage(compositeCanvas, 0, 0);
-                
+                streamCtx.clearRect(0,0,1920,1080); streamCtx.drawImage(compositeCanvas, 0, 0);
                 if(logoState && logoImg.src && logoImg.width) {
                     const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
                     streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
@@ -855,11 +741,7 @@
         // ==========================================
         // 5. P2P WebRTC & Audio Mixer
         // ==========================================
-        let peer = null;
-        let mixedStream = null;
-        let audioCtx = null;
-        let audioMixerDest = null;
-        
+        let peer = null; let mixedStream = null; let audioCtx = null; let audioMixerDest = null;
         let mainGain, wipeGain, bgmGain, extCamGain, micGain;
         let audioNodes = {};
 
@@ -867,34 +749,13 @@
             try {
                 if(audioCtx) return audioMixerDest.stream.getAudioTracks()[0];
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-                audioMixerDest = audioCtx.createMediaStreamDestination();
-
-                mainGain = audioCtx.createGain();
-                wipeGain = audioCtx.createGain();
-                bgmGain = audioCtx.createGain();
-                extCamGain = audioCtx.createGain();
-                micGain = audioCtx.createGain();
-
-                const mainVideo = document.getElementById('main-video');
-                const wipeVideo = document.getElementById('wipe-video');
-                const bgmPlayer = document.getElementById('bgm-player');
-                
-                audioNodes.main = audioCtx.createMediaElementSource(mainVideo);
-                audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo);
-                audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
-
-                audioNodes.main.connect(mainGain);
-                audioNodes.wipe.connect(wipeGain);
-                audioNodes.bgm.connect(bgmGain);
-
-                [mainGain, wipeGain, bgmGain, extCamGain].forEach(gain => {
-                    gain.connect(audioMixerDest);
-                    gain.connect(audioCtx.destination); 
-                });
-                
+                audioCtx = new AudioContext(); audioMixerDest = audioCtx.createMediaStreamDestination();
+                mainGain = audioCtx.createGain(); wipeGain = audioCtx.createGain(); bgmGain = audioCtx.createGain(); extCamGain = audioCtx.createGain(); micGain = audioCtx.createGain();
+                const mainVideo = document.getElementById('main-video'); const wipeVideo = document.getElementById('wipe-video'); const bgmPlayer = document.getElementById('bgm-player');
+                audioNodes.main = audioCtx.createMediaElementSource(mainVideo); audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo); audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
+                audioNodes.main.connect(mainGain); audioNodes.wipe.connect(wipeGain); audioNodes.bgm.connect(bgmGain);
+                [mainGain, wipeGain, bgmGain, extCamGain].forEach(gain => { gain.connect(audioMixerDest); gain.connect(audioCtx.destination); });
                 micGain.connect(audioMixerDest);
-
                 return audioMixerDest.stream.getAudioTracks()[0];
             } catch(e) { return null; }
         }
@@ -902,92 +763,44 @@
         async function initBroadcast() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
-                
-                streamCtx.fillStyle = '#000'; streamCtx.fillRect(0, 0, 1920, 1080);
-                compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
-
                 const captureFunc = streamCanvas.captureStream || streamCanvas.mozCaptureStream;
                 if (!captureFunc) return alert("お使いのブラウザは映像配信に非対応です。");
-
-                fetchWeatherInBackground();
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('broadcast-mode').style.display = 'flex';
-                
+                fetchWeatherInBackground(); document.getElementById('mode-selection').style.display = 'none'; document.getElementById('broadcast-mode').style.display = 'flex';
                 const audioTrack = initAudioMixer();
-
-                const canvasStream = captureFunc.call(streamCanvas, 60); 
-                const videoTrack = canvasStream.getVideoTracks()[0];
-                
-                const tracks = [videoTrack, audioTrack].filter(t => t);
-                mixedStream = new MediaStream(tracks);
-
+                const canvasStream = captureFunc.call(streamCanvas, 60); const videoTrack = canvasStream.getVideoTracks()[0];
+                mixedStream = new MediaStream([videoTrack, audioTrack].filter(t => t));
                 const displayId = Math.floor(1000 + Math.random() * 9000).toString();
                 const secureHostId = "wrc-broadcast-pro-" + displayId; 
-
                 peer = new Peer(secureHostId, peerConfig);
                 peer.on('open', () => { document.getElementById('my-peer-id').innerText = displayId; });
-
                 peer.on('call', (call) => {
                     if (call.metadata && call.metadata.type === 'ext-cam') {
-                        extCamCall = call;
-                        call.answer(); 
-                        
+                        extCamCall = call; call.answer(); 
                         const handleStream = (remoteStream) => {
                             const extVideo = document.getElementById('ext-cam-video');
                             const monitorVideo = document.getElementById('extcam-monitor-video');
-                            
-                            // 確実にsrcを再セットする
                             extVideo.srcObject = remoteStream;
-                            if (monitorVideo) {
-                                monitorVideo.srcObject = remoteStream;
-                                document.getElementById('extcam-offline-text').style.display = 'none';
-                            }
-
-                            // 接続時の処理（初回のみ）
+                            if (monitorVideo) { monitorVideo.srcObject = remoteStream; document.getElementById('extcam-offline-text').style.display = 'none'; }
                             if(!extCamConnected) {
                                 extCamConnected = true;
-                                if (audioCtx && audioMixerDest) {
-                                    try {
-                                        const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
-                                        streamSrc.connect(extCamGain);
-                                    } catch(e) {}
-                                }
+                                if (audioCtx && audioMixerDest) { try { const streamSrc = audioCtx.createMediaStreamSource(remoteStream); streamSrc.connect(extCamGain); } catch(e) {} }
                                 document.getElementById('cam-control-group').style.display = 'flex';
-                                populateButtons('main', mainFiles);
-                                populateButtons('wipe', wipeFiles);
-                                resizePreview();
+                                populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
                                 alert("📱 EXTERNAL CAMERA CONNECTED!");
                             }
                         };
-
                         call.on('stream', handleStream);
-                        
-                        // 【最重要】PeerJSで映像トラックが遅れて追加された時のフォールバック処理
-                        // これで「音声は繋がっているのに映像が来ない(真っ黒)」を完全に防止する
                         if (call.peerConnection) {
-                            call.peerConnection.addEventListener('track', (event) => {
-                                if (event.streams && event.streams[0]) {
-                                    handleStream(event.streams[0]);
-                                }
-                            });
+                            call.peerConnection.addEventListener('track', (event) => { if (event.streams && event.streams[0]) { handleStream(event.streams[0]); } });
                         }
-                        
                         call.on('close', () => { disconnectExtCamHost(); });
                     }
                 });
-
                 peer.on('connection', (conn) => {
                     viewerConns.push(conn);
-                    conn.on('data', (data) => {
-                        if (data && data.type === 'HELLO_HOST') {
-                            document.getElementById('p2p-status').innerText = "Viewer Connected!";
-                            document.getElementById('p2p-status').style.color = "yellow";
-                            peer.call(data.viewerId, mixedStream);
-                        }
-                    });
+                    conn.on('data', (data) => { if (data && data.type === 'HELLO_HOST') { document.getElementById('p2p-status').innerText = "Viewer Connected!"; document.getElementById('p2p-status').style.color = "yellow"; peer.call(data.viewerId, mixedStream); } });
                     conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
-
                 requestAnimationFrame(renderLoop);
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
         }
@@ -995,20 +808,14 @@
         function initViewer() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('viewer-mode').style.display = 'flex';
-                
+                document.getElementById('mode-selection').style.display = 'none'; document.getElementById('viewer-mode').style.display = 'flex';
                 peer = new Peer(null, peerConfig);
                 peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
-                
                 peer.on('call', (call) => {
                     document.getElementById('viewer-status-text').innerText = "Receiving P2P Stream...";
-                    call.answer();
-                    call.on('stream', (remoteStream) => {
+                    call.answer(); call.on('stream', (remoteStream) => {
                         document.getElementById('viewer-ui').style.display = 'none';
-                        const video = document.getElementById('viewer-video');
-                        video.style.display = 'block';
-                        video.srcObject = remoteStream;
+                        const video = document.getElementById('viewer-video'); video.style.display = 'block'; video.srcObject = remoteStream;
                         document.getElementById('viewer-top-controls').style.display = 'flex';
                     });
                 });
@@ -1018,39 +825,20 @@
         function connectToHost() {
             const inputId = document.getElementById('host-id-input').value.trim();
             if (!inputId || inputId.length !== 4) return alert("4桁のIDを入力してください");
-            
             const targetHostId = "wrc-broadcast-pro-" + inputId;
             document.getElementById('viewer-status-text').innerText = "Connecting...";
             const conn = peer.connect(targetHostId, { reliable: true });
-            
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            conn.on('data', (data) => {
-                if(data && data.type === 'END_BROADCAST') {
-                    alert("ホストが配信を終了しました");
-                    location.reload();
-                }
-            });
+            conn.on('data', (data) => { if(data && data.type === 'END_BROADCAST') { alert("ホストが配信を終了しました"); location.reload(); } });
             conn.on('error', () => { alert("接続エラー"); });
         }
 
         let extCamStream = null;
         async function initExternalCam() {
             try {
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('extcam-mode').style.display = 'flex';
-                
-                // 【安定・最強画質】 1280x720を理想値としつつ、スマホ側のエラーを防ぐ
-                const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                    audio: { echoCancellation: true, noiseSuppression: true } 
-                };
-                
-                try {
-                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch(e) {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-                }
-
+                document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
+                const constraints = { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true };
+                try { extCamStream = await navigator.mediaDevices.getUserMedia(constraints); } catch(e) { extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true }); }
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
                 peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable HD). Enter HOST ID."; });
@@ -1060,14 +848,10 @@
         function connectExtCam() {
             const inputId = document.getElementById('ext-host-id').value.trim();
             if (!inputId || inputId.length !== 4) return alert("配信端末の4桁IDを入力してください");
-            
             const targetHostId = "wrc-broadcast-pro-" + inputId;
             document.getElementById('extcam-status-text').innerText = "Connecting to Host...";
-            
             const call = peer.call(targetHostId, extCamStream, { metadata: { type: 'ext-cam' } });
-            call.on('stream', () => {}); 
             call.on('close', () => { alert("ホストから切断されました"); location.reload(); });
-            
             document.getElementById('extcam-ui').style.display = 'none';
         }
     </script>
