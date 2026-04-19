@@ -39,12 +39,6 @@
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
-        /* ----- 共通スケールエリア (放送ホスト用) ----- */
-        .scale-area {
-            width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
-            transform-origin: center center; transform: translate(-50%, -50%);
-        }
-
         /* ----- 放送モード画面 ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; position: relative; z-index: 10; background: #000; }
         #broadcast-info {
@@ -53,16 +47,28 @@
         }
 
         #preview-wrapper { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        
+        .scale-area {
+            width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
+            transform-origin: center center; transform: translate(-50%, -50%);
+        }
         #composite-canvas { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 2; pointer-events: none; }
 
         #controls {
             background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0;
         }
-        .control-group { background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3); padding: 12px; min-width: 250px; }
+        .control-group { background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3); padding: 12px; min-width: 250px; display: flex; flex-direction: column; }
         .control-group h3 { color: var(--wrc-orange); margin-top: 0; font-size: 14px; border-bottom: 1px solid var(--wrc-orange); padding-bottom: 5px; margin-bottom: 10px; }
-        select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
-        .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; cursor: pointer; }
+        
+        .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; cursor: pointer; border: 1px solid var(--wrc-orange); background: transparent; color: white; transition: 0.2s; }
+        .btn-small.active { background: var(--wrc-orange); color: var(--wrc-navy-dark); font-weight: bold; }
+        .btn-small:hover { background: rgba(255, 87, 34, 0.3); }
         .flex-row { display: flex; gap: 5px; margin-bottom: 5px; }
+
+        /* ワンタップボタン用のコンテナ */
+        .media-btn-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; min-height: 32px; }
+        .media-track-btn { flex-grow: 1; padding: 5px; font-size: 12px; border: 1px solid gray; color: gray; background: transparent; cursor: pointer; min-width: 30px; text-align: center; }
+        .media-track-btn.active { border-color: var(--wrc-orange); color: var(--wrc-orange); background: rgba(255,87,34,0.1); font-weight: bold; }
 
         /* 動画フリーズ回避 */
         .hidden-media { position: fixed; top: -9999px; left: -9999px; width: 1280px; height: 720px; z-index: -9999; }
@@ -75,7 +81,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 10.0.0 (NATIVE PLAYER ENABLED)</div>
+        <div id="version-text">VER 11.0.0 (ONE-TAP UI & END BROADCAST)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -87,9 +93,7 @@
             <button class="btn" onclick="connectToHost()">CONNECT</button>
             <div id="viewer-status-text" class="status-text">Ready</div>
         </div>
-        
         <video id="viewer-video" class="fullscreen-video" controls autoplay playsinline muted style="display: none; background: #000; z-index: 2;"></video>
-        
         <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';">🔊 UNMUTE AUDIO</button>
     </div>
 
@@ -118,32 +122,33 @@
         </div>
 
         <div id="controls">
-            <div class="control-group" style="border-color: #4CAF50; min-width: 180px;">
-                <h3 style="color: #4CAF50;">SETTINGS & LOGO</h3>
+            <div class="control-group" style="border-color: #f44336; min-width: 180px;">
+                <h3 style="color: #f44336; border-color: #f44336;">SYSTEM</h3>
+                <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 10px; font-weight: bold;">END BROADCAST<br>(配信終了)</button>
                 <div class="flex-row">
-                    <button id="fps-24-btn" class="btn btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS</button>
-                    <button id="fps-60-btn" class="btn btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS</button>
+                    <button id="fps-24-btn" class="btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS</button>
+                    <button id="fps-60-btn" class="btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS</button>
                 </div>
                 <input type="file" id="logo-file" accept="image/*" onchange="handleLogo()" style="width: 100%; font-size: 10px; margin: 5px 0;">
                 <div class="flex-row">
-                    <button class="btn btn-small" onclick="toggleLogo(true)" style="border-color: #e91e63; color: #e91e63;">LOGO ON</button>
-                    <button class="btn btn-small" onclick="toggleLogo(false)" style="border-color: gray; color: gray;">OFF</button>
+                    <button class="btn-small" onclick="toggleLogo(true)" style="border-color: #e91e63; color: #e91e63;">LOGO ON</button>
+                    <button class="btn-small" onclick="toggleLogo(false)" style="border-color: gray; color: gray;">OFF</button>
                 </div>
             </div>
 
             <div class="control-group">
                 <h3>MAIN MEDIA</h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
-                <select id="main-file-select" class="file-select" onchange="switchMainMedia()"><option value="">Select File...</option></select>
+                <div id="main-btn-list" class="media-btn-list"></div>
             </div>
             
             <div class="control-group">
                 <h3>WIPE (LEFT BOTTOM)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
-                <select id="wipe-file-select" class="file-select" onchange="switchWipeMedia()"><option value="">Wipe File...</option></select>
+                <div id="wipe-btn-list" class="media-btn-list"></div>
                 <div class="flex-row">
-                    <button class="btn btn-small" onclick="toggleWipe(true)">SHOW WIPE</button>
-                    <button class="btn btn-small" onclick="toggleWipe(false)" style="border-color: gray; color: gray;">HIDE</button>
+                    <button class="btn-small" onclick="toggleWipe(true)">SHOW WIPE</button>
+                    <button class="btn-small" onclick="toggleWipe(false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
             </div>
             
@@ -151,33 +156,32 @@
                 <h3>TEXT & WEATHER</h3>
                 <input type="text" id="overlay-text-input" placeholder="TEXT..." oninput="saveSetting('wrc_text', this.value)" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
                 <div class="flex-row">
-                    <button class="btn btn-small" onclick="activateInfo('text')">TXT ON</button>
-                    <button class="btn btn-small" onclick="activateInfo('weather')">WTH ON</button>
+                    <button class="btn-small" onclick="activateInfo('text')">TXT ON</button>
+                    <button class="btn-small" onclick="activateInfo('weather')">WTH ON</button>
                 </div>
-                <button class="btn btn-small" onclick="hideInfo()" style="border-color: gray; color: gray; width: 100%;">HIDE TEXT/WTH</button>
+                <button class="btn-small" onclick="hideInfo()" style="border-color: gray; color: gray; width: 100%;">HIDE TEXT/WTH</button>
             </div>
 
             <div class="control-group" style="border-color: #9c27b0;">
-                <h3 style="color: #9c27b0;">COMING UP NEXT</h3>
+                <h3 style="color: #9c27b0; border-color: #9c27b0;">COMING UP NEXT</h3>
                 <div class="flex-row">
                     <input type="time" id="schedule-time" oninput="saveSetting('wrc_time', this.value)" style="width: 40%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px; font-family: monospace;">
                     <input type="text" id="schedule-text" placeholder="STAGE..." oninput="saveSetting('wrc_stext', this.value)" style="width: 60%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px;">
                 </div>
                 <div class="flex-row">
-                    <button class="btn btn-small" onclick="toggleSchedule(true)" style="border-color: #9c27b0; color: #9c27b0;">SHOW</button>
-                    <button class="btn btn-small" onclick="toggleSchedule(false)" style="border-color: gray; color: gray;">HIDE</button>
+                    <button class="btn-small" onclick="toggleSchedule(true)" style="border-color: #9c27b0; color: #9c27b0;">SHOW</button>
+                    <button class="btn-small" onclick="toggleSchedule(false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
             </div>
 
             <div class="control-group" style="border-color: #2196F3;">
-                <h3 style="color: #2196F3;">BGM (AUTO DJ)</h3>
+                <h3 style="color: #2196F3; border-color: #2196F3;">BGM (AUTO DJ)</h3>
                 <input type="file" id="bgm-file" accept="audio/*, .mp3, .wav, .m4a" multiple onchange="handleAudioFiles()" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
-                <select id="bgm-select" class="file-select"><option value="">Select Audio...</option></select>
+                <div id="bgm-btn-list" class="media-btn-list"></div>
                 <div class="flex-row">
-                    <button class="btn btn-small" onclick="playBgm(false)" style="border-color: #2196F3; color: #2196F3;">PLAY</button>
-                    <button class="btn btn-small" onclick="playBgm(true)" style="border-color: #2196F3; color: #2196F3;">NEXT</button>
+                    <button class="btn-small" onclick="playBgmRandom()" style="border-color: #2196F3; color: #2196F3; width: 100%;">🎲 RANDOM NEXT</button>
                 </div>
-                <button class="btn btn-small" onclick="stopBgm()" style="border-color: gray; color: gray; width: 100%; margin-top: 5px;">STOP ALL</button>
+                <button class="btn-small" onclick="stopBgm()" style="border-color: gray; color: gray; width: 100%; margin-top: 5px;">STOP ALL</button>
             </div>
         </div>
 
@@ -193,36 +197,41 @@
 
     <script>
         // ==========================================
-        // 0. ローカルデータベース構築
+        // 0. ローカルデータベース構築 (バグ耐性強化版)
         // ==========================================
-        const dbName = "WrcBroadcastDB4";
+        const dbName = "WrcBroadcastDB5";
         let db;
+        let viewerConns = [];
 
         function initDB() {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 const req = indexedDB.open(dbName, 1);
                 req.onupgradeneeded = e => {
                     db = e.target.result;
                     if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
                 };
                 req.onsuccess = e => { db = e.target.result; resolve(); };
-                req.onerror = e => reject(e);
+                req.onerror = e => { console.warn("IndexedDB Error", e); resolve(); }; // エラーでも止めない
             });
         }
 
         function saveFilesToDB(key, files) {
             if(!db) return;
-            const tx = db.transaction('files', 'readwrite');
-            tx.objectStore('files').put(files, key);
+            try {
+                const tx = db.transaction('files', 'readwrite');
+                tx.objectStore('files').put(files, key);
+            } catch(e) { console.warn("Failed to save files to DB. Device might not support it.", e); }
         }
 
         function loadFilesFromDB(key) {
             return new Promise(resolve => {
                 if(!db) return resolve([]);
-                const tx = db.transaction('files', 'readonly');
-                const req = tx.objectStore('files').get(key);
-                req.onsuccess = () => resolve(req.result || []);
-                req.onerror = () => resolve([]);
+                try {
+                    const tx = db.transaction('files', 'readonly');
+                    const req = tx.objectStore('files').get(key);
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => resolve([]);
+                } catch(e) { resolve([]); }
             });
         }
 
@@ -232,9 +241,9 @@
         window.onload = async () => {
             try {
                 await initDB();
-                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateSelect('main', mainFiles); }
-                const wFiles = await loadFilesFromDB('wipe'); if(wFiles.length > 0) { wipeFiles = wFiles; populateSelect('wipe', wipeFiles); }
-                const bFiles = await loadFilesFromDB('bgm');  if(bFiles.length > 0) { bgmFiles = bFiles; populateSelect('bgm', bgmFiles); }
+                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateButtons('main', mainFiles); }
+                const wFiles = await loadFilesFromDB('wipe'); if(wFiles.length > 0) { wipeFiles = wFiles; populateButtons('wipe', wipeFiles); }
+                const bFiles = await loadFilesFromDB('bgm');  if(bFiles.length > 0) { bgmFiles = bFiles; populateButtons('bgm', bgmFiles); }
                 const lFile = await loadFilesFromDB('logo');  if(lFile.length > 0) { logoFile = lFile[0]; logoImg.src = URL.createObjectURL(logoFile); logoState = true; }
 
                 document.getElementById('overlay-text-input').value = loadSetting('wrc_text', '');
@@ -244,21 +253,19 @@
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
 
-                document.getElementById('bgm-player').addEventListener('ended', () => { playBgm(true); });
+                // Auto DJ 連鎖再生
+                document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
             } catch(e) {}
         };
 
         function resizePreview() {
-            // ホストのプレビュー領域のみスケールする
-            const wrappers = [document.getElementById('preview-wrapper')];
-            wrappers.forEach(wrapper => {
-                if(!wrapper || wrapper.style.display === 'none') return;
-                const scaleArea = wrapper.querySelector('.scale-area');
-                if(scaleArea) {
-                    const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
-                    scaleArea.style.transform = `translate(-50%, -50%) scale(${scale})`;
-                }
-            });
+            const wrapper = document.getElementById('preview-wrapper');
+            if(!wrapper || wrapper.style.display === 'none') return;
+            const scaleArea = wrapper.querySelector('.scale-area');
+            if(scaleArea) {
+                const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
+                scaleArea.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            }
         }
         window.addEventListener('resize', resizePreview);
 
@@ -284,46 +291,90 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. メディア制御
+        // 2. ワンタップメディア制御エンジン
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
 
-        function populateSelect(type, files) {
-            const select = document.getElementById(`${type}-file-select`);
-            const hasExtCam = [...select.options].some(o => o.value === 'ext-cam');
-            select.innerHTML = '<option value="">Select File...</option>';
-            if(hasExtCam) select.add(new Option("📱 EXTERNAL CAMERA", "ext-cam"));
+        function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 
-            files.forEach((f, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = f.name; select.appendChild(opt); });
+        // 新機能：ワンタップボタンの生成
+        function populateButtons(type, files) {
+            const container = document.getElementById(`${type}-btn-list`);
+            container.innerHTML = '';
+            
+            // 外部カメラが接続されていればボタン追加
+            if ((type === 'main' || type === 'wipe') && extCamConnected) {
+                const btn = document.createElement('button');
+                btn.className = `media-track-btn`;
+                btn.innerText = '📱 CAM';
+                btn.style.color = '#e91e63';
+                btn.style.borderColor = '#e91e63';
+                btn.onclick = () => {
+                    if(type === 'main') switchMainMedia('ext-cam', btn);
+                    if(type === 'wipe') switchWipeMedia('ext-cam', btn);
+                };
+                container.appendChild(btn);
+            }
+
+            files.forEach((f, i) => {
+                const btn = document.createElement('button');
+                btn.className = `media-track-btn`;
+                btn.innerText = (i + 1).toString(); // シンプルに番号表示
+                btn.title = f.name; // ホバーでファイル名
+                btn.onclick = () => {
+                    if(type === 'main') switchMainMedia(i, btn);
+                    if(type === 'wipe') switchWipeMedia(i, btn);
+                    if(type === 'bgm') playBgm(i, btn);
+                };
+                container.appendChild(btn);
+            });
+
+            // 自動的に1番目を選択して再生
             if (files.length > 0) {
-                select.value = "0";
-                if(type === 'main') switchMainMedia();
-                if(type === 'wipe') switchWipeMedia();
+                const firstBtn = container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0];
+                if(type === 'main') switchMainMedia(0, firstBtn);
+                if(type === 'wipe') switchWipeMedia(0, firstBtn);
             }
         }
 
+        let extCamConnected = false;
+        function addExternalCamOption() {
+            extCamConnected = true;
+            populateButtons('main', mainFiles);
+            populateButtons('wipe', wipeFiles);
+        }
+
+        // ファイルを選択した直後にアップロード＆ボタン生成
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
             const files = Array.from(input.files);
             if(files.length === 0) return;
-            if(type === 'main') { mainFiles = files; saveFilesToDB('main', files); populateSelect('main', files); }
-            if(type === 'wipe') { wipeFiles = files; saveFilesToDB('wipe', files); populateSelect('wipe', files); toggleWipe(true); }
+            if(type === 'main') { mainFiles = files; saveFilesToDB('main', files); populateButtons('main', files); }
+            if(type === 'wipe') { wipeFiles = files; saveFilesToDB('wipe', files); populateButtons('wipe', files); toggleWipe(true); }
         }
 
         function handleAudioFiles() {
             const input = document.getElementById('bgm-file');
             const files = Array.from(input.files);
             if(files.length === 0) return;
-            bgmFiles = files; saveFilesToDB('bgm', files); populateSelect('bgm', files);
+            bgmFiles = files; saveFilesToDB('bgm', files); populateButtons('bgm', files);
         }
 
-        function switchMainMedia() {
-            const select = document.getElementById('main-file-select');
-            if(select.value === "") return;
-            if(select.value === "ext-cam") { isMainVideo = 'ext-cam'; return; }
+        // アクティブなボタンのハイライトを更新
+        function updateActiveButton(containerId, activeBtn) {
+            document.querySelectorAll(`#${containerId} .media-track-btn`).forEach(b => b.classList.remove('active'));
+            if(activeBtn) activeBtn.classList.add('active');
+        }
 
-            const file = mainFiles[select.value];
+        function switchMainMedia(idxOrType, btnElement = null) {
+            resumeAudio();
+            updateActiveButton('main-btn-list', btnElement);
+
+            if(idxOrType === "ext-cam") { isMainVideo = 'ext-cam'; return; }
+            
+            const file = mainFiles[idxOrType];
+            if(!file) return;
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; const v = document.getElementById('main-video'); 
@@ -331,12 +382,14 @@
             } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
-        function switchWipeMedia() {
-            const select = document.getElementById('wipe-file-select');
-            if(select.value === "") return;
-            if(select.value === "ext-cam") { isWipeVideo = 'ext-cam'; toggleWipe(true); return; }
+        function switchWipeMedia(idxOrType, btnElement = null) {
+            resumeAudio();
+            updateActiveButton('wipe-btn-list', btnElement);
 
-            const file = wipeFiles[select.value];
+            if(idxOrType === "ext-cam") { isWipeVideo = 'ext-cam'; toggleWipe(true); return; }
+
+            const file = wipeFiles[idxOrType];
+            if(!file) return;
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; const v = document.getElementById('wipe-video'); 
@@ -345,23 +398,32 @@
             toggleWipe(true);
         }
 
-        function playBgm(random = false) {
+        function playBgm(idx, btnElement = null) {
+            resumeAudio();
             if (bgmFiles.length === 0) return;
-            const select = document.getElementById('bgm-select');
-            const player = document.getElementById('bgm-player');
             
-            let idx = parseInt(select.value || 0);
-            if (random) {
-                idx = Math.floor(Math.random() * bgmFiles.length);
-                select.value = idx;
-            } else {
-                if(select.value === "") select.value = "0";
-                idx = parseInt(select.value);
+            // ボタンが直接指定されていない場合（AutoDJ）、UIのインデックスを探してハイライト
+            if(!btnElement) {
+                const btns = document.querySelectorAll(`#bgm-btn-list .media-track-btn`);
+                if(btns[idx]) btnElement = btns[idx];
             }
+            updateActiveButton('bgm-btn-list', btnElement);
+
+            const player = document.getElementById('bgm-player');
             player.src = URL.createObjectURL(bgmFiles[idx]);
             player.play().catch(()=>{});
         }
-        function stopBgm() { const p = document.getElementById('bgm-player'); p.pause(); }
+
+        function playBgmRandom() {
+            if (bgmFiles.length === 0) return;
+            const rIndex = Math.floor(Math.random() * bgmFiles.length);
+            playBgm(rIndex);
+        }
+
+        function stopBgm() { 
+            const p = document.getElementById('bgm-player'); p.pause(); 
+            updateActiveButton('bgm-btn-list', null);
+        }
 
         let targetFPS = 24;
         function setFPS(fps) {
@@ -386,7 +448,26 @@
         function toggleLogo(show) { logoState = show; }
 
         // ==========================================
-        // 3. キャンバス描画エンジン
+        // 3. 配信終了機能 (END BROADCAST)
+        // ==========================================
+        function endBroadcast() {
+            const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
+            if (!confirmEnd) return;
+
+            // 視聴者に終了シグナルを送信
+            viewerConns.forEach(conn => {
+                if(conn.open) conn.send({ type: 'END_BROADCAST' });
+            });
+
+            // 自身もリロードして完全リセット
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        }
+
+
+        // ==========================================
+        // 4. キャンバス描画エンジン
         // ==========================================
         const compositeCanvas = document.getElementById('composite-canvas');
         const compCtx = compositeCanvas.getContext('2d');
@@ -565,7 +646,7 @@
         }
 
         // ==========================================
-        // 4. P2P WebRTC & Audio Mixer
+        // 5. P2P WebRTC & Audio Mixer
         // ==========================================
         let peer = null;
         let mixedStream = null;
@@ -635,6 +716,7 @@
                 });
 
                 peer.on('connection', (conn) => {
+                    viewerConns.push(conn);
                     conn.on('data', (data) => {
                         if (data && data.type === 'HELLO_HOST') {
                             document.getElementById('p2p-status').innerText = "Viewer Connected!";
@@ -642,21 +724,11 @@
                             peer.call(data.viewerId, mixedStream);
                         }
                     });
+                    conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
 
                 requestAnimationFrame(renderLoop);
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
-        }
-
-        function addExternalCamOption() {
-            ['main-file-select', 'wipe-file-select'].forEach(id => {
-                const sel = document.getElementById(id);
-                if(![...sel.options].some(o => o.value === 'ext-cam')) {
-                    const opt = document.createElement('option');
-                    opt.value = 'ext-cam'; opt.text = '📱 EXTERNAL CAMERA';
-                    sel.appendChild(opt);
-                }
-            });
         }
 
         function initViewer() {
@@ -664,7 +736,6 @@
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('viewer-mode').style.display = 'flex';
-                // Viewer側のスケールは行わない
                 
                 peer = new Peer();
                 peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
@@ -692,9 +763,20 @@
             const conn = peer.connect(targetHostId, { reliable: true });
             
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
+            
+            // 配信終了の受信
+            conn.on('data', (data) => {
+                if(data && data.type === 'END_BROADCAST') {
+                    alert("ホストが配信を終了しました");
+                    location.reload();
+                }
+            });
             conn.on('error', () => { alert("接続エラー"); });
         }
 
+        // ==========================================
+        // 6. EXTERNAL CAMERA
+        // ==========================================
         let extCamStream = null;
         async function initExternalCam() {
             try {
