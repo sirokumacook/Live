@@ -52,7 +52,7 @@
             padding: 10px; font-size: 18px; color: yellow; border: 2px solid yellow; letter-spacing: 2px;
         }
 
-        #preview-wrapper { flex: 1; position: relative; overflow: hidden; }
+        #preview-wrapper { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         #composite-canvas { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 2; pointer-events: none; }
 
         #controls {
@@ -75,7 +75,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 9.1.0 (NATIVE PLAYER ENABLED)</div>
+        <div id="version-text">VER 10.0.0 (NATIVE PLAYER ENABLED)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -248,8 +248,8 @@
             } catch(e) {}
         };
 
-        // 視聴画面のスケールラッパーを外したため、放送画面のみをスケール対象に修正
         function resizePreview() {
+            // ホストのプレビュー領域のみスケールする
             const wrappers = [document.getElementById('preview-wrapper')];
             wrappers.forEach(wrapper => {
                 if(!wrapper || wrapper.style.display === 'none') return;
@@ -664,6 +664,7 @@
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('viewer-mode').style.display = 'flex';
+                // Viewer側のスケールは行わない
                 
                 peer = new Peer();
                 peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
