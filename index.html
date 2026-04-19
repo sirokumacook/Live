@@ -32,8 +32,18 @@
         .ui-panel { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
         .fullscreen-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
         
+        #unmute-btn {
+            display: none; position: absolute; top: 20px; right: 20px; z-index: 1000;
+            padding: 15px 20px; background: var(--wrc-orange); color: #fff; border: none; font-size: 16px; cursor: pointer;
+        }
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
+
+        /* ----- 共通スケールエリア ----- */
+        .scale-area {
+            width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
+            transform-origin: center center; transform: translate(-50%, -50%);
+        }
 
         /* ----- 放送モード画面 ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; position: relative; z-index: 10; background: #000; }
@@ -43,11 +53,6 @@
         }
 
         #preview-wrapper { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        
-        .scale-area {
-            width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
-            transform-origin: center center; transform: translate(-50%, -50%);
-        }
         #composite-canvas { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 2; pointer-events: none; }
 
         #controls {
@@ -77,7 +82,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 12.1.0 (FULLSCREEN UI ADDED)</div>
+        <div id="version-text">VER 13.0.0 (MULTI-CAM SUPPORT)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -89,7 +94,7 @@
             <button class="btn" onclick="connectToHost()">CONNECT</button>
             <div id="viewer-status-text" class="status-text">Ready</div>
         </div>
-
+        
         <video id="viewer-video" class="fullscreen-video" controls autoplay playsinline muted style="display: none; background: #000; z-index: 2;"></video>
         
         <div id="viewer-top-controls" style="display: none; position: absolute; top: 20px; right: 20px; z-index: 1000; gap: 10px;">
@@ -199,15 +204,26 @@
             <video id="wipe-video" class="hidden-media" loop playsinline></video>
             <img id="wipe-img" class="hidden-media">
             <audio id="bgm-player" class="hidden-media"></audio>
-            <video id="ext-cam-video" class="hidden-media" autoplay playsinline muted></video>
-        </div>
+            </div>
     </div>
 
     <script>
         // ==========================================
-        // 0. ローカルデータベース構築
+        // 0. 全画面 & データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB5";
+        function toggleFullScreen() {
+            const video = document.getElementById('viewer-video');
+            if (video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); return; }
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                if (video.requestFullscreen) video.requestFullscreen();
+                else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+        }
+
+        const dbName = "WrcBroadcastDB6";
         let db;
         let viewerConns = [];
 
@@ -219,16 +235,13 @@
                     if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
                 };
                 req.onsuccess = e => { db = e.target.result; resolve(); };
-                req.onerror = e => { console.warn("IndexedDB Error", e); resolve(); };
+                req.onerror = e => { resolve(); }; 
             });
         }
 
         function saveFilesToDB(key, files) {
             if(!db) return;
-            try {
-                const tx = db.transaction('files', 'readwrite');
-                tx.objectStore('files').put(files, key);
-            } catch(e) { console.warn("Failed to save files to DB. Device might not support it.", e); }
+            try { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(files, key); } catch(e) {}
         }
 
         function loadFilesFromDB(key) {
@@ -263,7 +276,6 @@
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
 
-                // Auto DJ 連鎖再生
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
             } catch(e) {}
         };
@@ -280,35 +292,7 @@
         window.addEventListener('resize', resizePreview);
 
         // ==========================================
-        // 新規追加：全画面表示 API 処理
-        // ==========================================
-        function toggleFullScreen() {
-            const video = document.getElementById('viewer-video');
-            
-            // iOS Safariなど一部環境ではvideo要素専用のFullscreen APIを呼ぶ必要がある
-            if (video.webkitEnterFullscreen) {
-                video.webkitEnterFullscreen();
-                return;
-            }
-            
-            // 通常のFullscreen API
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                if (video.requestFullscreen) {
-                    video.requestFullscreen();
-                } else if (video.webkitRequestFullscreen) {
-                    video.webkitRequestFullscreen();
-                }
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
-            }
-        }
-
-        // ==========================================
-        // 1. テキストプリセット機能
+        // 1. テキストプリセット & 天気取得
         // ==========================================
         let textPresets = [];
         function initTextPresets() {
@@ -348,9 +332,6 @@
             saveSetting('wrc_text', textPresets[parseInt(sel.value)]);
         }
 
-        // ==========================================
-        // 2. 天気取得システム
-        // ==========================================
         let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
         function fetchWeatherInBackground() {
             if (!navigator.geolocation) return;
@@ -370,10 +351,18 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 3. ワンタップメディア制御エンジン
+        // 2. ワンタップメディア ＆ マルチカメラエンジン
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
-        let isMainVideo = false, isWipeVideo = false;
+        let isMainVideo = null, isWipeVideo = null;
+        
+        let activeMainMedia = null; 
+        let activeWipeMedia = null;
+        let activeBgmMedia = null;
+
+        // マルチカメラ管理用配列
+        let extCams = []; // { id: 'ext-cam-1', name: '📱 CAM 1', stream: MediaStream, videoEl: HTMLVideoElement }
+        let extCamCounter = 1;
 
         function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 
@@ -381,59 +370,62 @@
             const container = document.getElementById(`${type}-btn-list`);
             container.innerHTML = '';
             
-            if ((type === 'main' || type === 'wipe') && extCamConnected) {
-                const btn = document.createElement('button');
-                btn.className = `media-track-btn`;
-                btn.innerText = '📱 CAM';
-                btn.style.color = '#e91e63';
-                btn.style.borderColor = '#e91e63';
-                btn.onclick = () => {
-                    if(type === 'main') switchMainMedia('ext-cam', btn);
-                    if(type === 'wipe') switchWipeMedia('ext-cam', btn);
-                };
-                container.appendChild(btn);
+            // 接続されている全ての外部カメラをボタン化
+            if (type === 'main' || type === 'wipe') {
+                extCams.forEach(cam => {
+                    const btn = document.createElement('button');
+                    btn.className = `media-track-btn`;
+                    if ((type === 'main' && activeMainMedia === cam.id) || (type === 'wipe' && activeWipeMedia === cam.id)) {
+                        btn.classList.add('active');
+                    }
+                    btn.innerText = cam.name;
+                    btn.style.color = '#e91e63'; btn.style.borderColor = '#e91e63';
+                    btn.onclick = () => {
+                        if(type === 'main') { activeMainMedia = cam.id; switchMainMedia(cam.id, btn); }
+                        if(type === 'wipe') { activeWipeMedia = cam.id; switchWipeMedia(cam.id, btn); }
+                    };
+                    container.appendChild(btn);
+                });
             }
 
             files.forEach((f, i) => {
                 const btn = document.createElement('button');
                 btn.className = `media-track-btn`;
+                if ((type === 'main' && activeMainMedia === i) || (type === 'wipe' && activeWipeMedia === i) || (type === 'bgm' && activeBgmMedia === i)) {
+                    btn.classList.add('active');
+                }
                 btn.innerText = (i + 1).toString();
                 btn.title = f.name;
                 btn.onclick = () => {
-                    if(type === 'main') switchMainMedia(i, btn);
-                    if(type === 'wipe') switchWipeMedia(i, btn);
-                    if(type === 'bgm') playBgm(i, btn);
+                    if(type === 'main') { activeMainMedia = i; switchMainMedia(i, btn); }
+                    if(type === 'wipe') { activeWipeMedia = i; switchWipeMedia(i, btn); }
+                    if(type === 'bgm') { activeBgmMedia = i; playBgm(i, btn); }
                 };
                 container.appendChild(btn);
             });
 
-            if (files.length > 0) {
-                const firstBtn = container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0];
-                if(type === 'main') switchMainMedia(0, firstBtn);
-                if(type === 'wipe') switchWipeMedia(0, firstBtn);
+            // 初期ロード時の自動選択
+            if (files.length > 0 && activeMainMedia === null && type === 'main') {
+                activeMainMedia = 0; switchMainMedia(0, container.querySelectorAll('.media-track-btn')[extCams.length]);
             }
-        }
-
-        let extCamConnected = false;
-        function addExternalCamOption() {
-            extCamConnected = true;
-            populateButtons('main', mainFiles);
-            populateButtons('wipe', wipeFiles);
+            if (files.length > 0 && activeWipeMedia === null && type === 'wipe') {
+                activeWipeMedia = 0; switchWipeMedia(0, container.querySelectorAll('.media-track-btn')[extCams.length]);
+            }
         }
 
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
             const files = Array.from(input.files).slice(0, 9);
             if(files.length === 0) return;
-            if(type === 'main') { mainFiles = files; saveFilesToDB('main', files); populateButtons('main', files); }
-            if(type === 'wipe') { wipeFiles = files; saveFilesToDB('wipe', files); populateButtons('wipe', files); toggleWipe(true); }
+            if(type === 'main') { mainFiles = files; saveFilesToDB('main', files); activeMainMedia = null; populateButtons('main', files); }
+            if(type === 'wipe') { wipeFiles = files; saveFilesToDB('wipe', files); activeWipeMedia = null; populateButtons('wipe', files); toggleWipe(true); }
         }
 
         function handleAudioFiles() {
             const input = document.getElementById('bgm-file');
             const files = Array.from(input.files);
             if(files.length === 0) return;
-            bgmFiles = files; saveFilesToDB('bgm', files); populateButtons('bgm', files);
+            bgmFiles = files; saveFilesToDB('bgm', files); activeBgmMedia = null; populateButtons('bgm', files);
         }
 
         function updateActiveButton(containerId, activeBtn) {
@@ -441,13 +433,17 @@
             if(activeBtn) activeBtn.classList.add('active');
         }
 
-        function switchMainMedia(idxOrType, btnElement = null) {
+        function switchMainMedia(idxOrId, btnElement = null) {
             resumeAudio();
             updateActiveButton('main-btn-list', btnElement);
 
-            if(idxOrType === "ext-cam") { isMainVideo = 'ext-cam'; return; }
+            // カメラIDが渡された場合
+            if(typeof idxOrId === 'string' && idxOrId.startsWith('ext-cam-')) { 
+                isMainVideo = idxOrId; 
+                return; 
+            }
             
-            const file = mainFiles[idxOrType];
+            const file = mainFiles[idxOrId];
             if(!file) return;
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
@@ -456,13 +452,15 @@
             } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
-        function switchWipeMedia(idxOrType, btnElement = null) {
+        function switchWipeMedia(idxOrId, btnElement = null) {
             resumeAudio();
             updateActiveButton('wipe-btn-list', btnElement);
 
-            if(idxOrType === "ext-cam") { isWipeVideo = 'ext-cam'; toggleWipe(true); return; }
+            if(typeof idxOrId === 'string' && idxOrId.startsWith('ext-cam-')) { 
+                isWipeVideo = idxOrId; toggleWipe(true); return; 
+            }
 
-            const file = wipeFiles[idxOrType];
+            const file = wipeFiles[idxOrId];
             if(!file) return;
             const url = URL.createObjectURL(file);
             if (file.type.startsWith('video/')) {
@@ -480,6 +478,7 @@
                 const btns = document.querySelectorAll(`#bgm-btn-list .media-track-btn`);
                 if(btns[idx]) btnElement = btns[idx];
             }
+            activeBgmMedia = idx;
             updateActiveButton('bgm-btn-list', btnElement);
 
             const player = document.getElementById('bgm-player');
@@ -495,6 +494,7 @@
 
         function stopBgm() { 
             const p = document.getElementById('bgm-player'); p.pause(); 
+            activeBgmMedia = null;
             updateActiveButton('bgm-btn-list', null);
         }
 
@@ -521,19 +521,14 @@
         function toggleLogo(show) { logoState = show; }
 
         // ==========================================
-        // 4. 配信終了機能 (END BROADCAST)
+        // 4. 配信終了機能 
         // ==========================================
         function endBroadcast() {
             const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
             if (!confirmEnd) return;
-
-            viewerConns.forEach(conn => {
-                if(conn.open) conn.send({ type: 'END_BROADCAST' });
-            });
-
+            viewerConns.forEach(conn => { if(conn.open) conn.send({ type: 'END_BROADCAST' }); });
             setTimeout(() => { location.reload(); }, 500);
         }
-
 
         // ==========================================
         // 5. キャンバス描画エンジン
@@ -584,9 +579,14 @@
             lastUpdate = time;
 
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
+            
+            // MAIN メディア描画 (マルチカメラ対応)
             let mainMedia;
-            if (isMainVideo === 'ext-cam') mainMedia = document.getElementById('ext-cam-video');
-            else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
+            if (typeof isMainVideo === 'string' && isMainVideo.startsWith('ext-cam-')) {
+                mainMedia = document.getElementById(isMainVideo);
+            } else {
+                mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
+            }
             drawImageCover(compCtx, mainMedia, 0, 0, 1920, 1080);
 
             if(logoState && logoImg.src && logoImg.width) {
@@ -606,9 +606,13 @@
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
+                    // WIPE メディア描画 (マルチカメラ対応)
                     let wipeMedia;
-                    if (isWipeVideo === 'ext-cam') wipeMedia = document.getElementById('ext-cam-video');
-                    else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    if (typeof isWipeVideo === 'string' && isWipeVideo.startsWith('ext-cam-')) {
+                        wipeMedia = document.getElementById(isWipeVideo);
+                    } else {
+                        wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    }
                     drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
                     compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
                 }
@@ -715,38 +719,35 @@
         }
 
         // ==========================================
-        // 6. P2P WebRTC & Audio Mixer
+        // 6. P2P WebRTC & Audio Mixer (マルチカメラ対応)
         // ==========================================
         let peer = null;
         let mixedStream = null;
         let audioCtx = null;
-        let mixedAudioTrack = null;
+        let audioMixerDest = null;
         let audioNodes = {};
 
         function initAudioMixer() {
             try {
-                if(audioCtx) return mixedAudioTrack;
+                if(audioCtx) return audioMixerDest.stream.getAudioTracks()[0];
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AudioContext();
-                const dest = audioCtx.createMediaStreamDestination();
+                audioMixerDest = audioCtx.createMediaStreamDestination();
 
                 const mainVideo = document.getElementById('main-video');
                 const wipeVideo = document.getElementById('wipe-video');
                 const bgmPlayer = document.getElementById('bgm-player');
-                const extCamVideo = document.getElementById('ext-cam-video');
                 
                 audioNodes.main = audioCtx.createMediaElementSource(mainVideo);
                 audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo);
                 audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
-                audioNodes.ext = audioCtx.createMediaElementSource(extCamVideo);
 
                 Object.values(audioNodes).forEach(src => {
-                    src.connect(dest);
+                    src.connect(audioMixerDest);
                     src.connect(audioCtx.destination); 
                 });
 
-                mixedAudioTrack = dest.stream.getAudioTracks()[0];
-                return mixedAudioTrack;
+                return audioMixerDest.stream.getAudioTracks()[0];
             } catch(e) { return null; }
         }
 
@@ -783,11 +784,39 @@
                     if (call.metadata && call.metadata.type === 'ext-cam') {
                         call.answer(); 
                         call.on('stream', (remoteStream) => {
-                            const extVideo = document.getElementById('ext-cam-video');
-                            extVideo.srcObject = remoteStream;
-                            extVideo.play();
-                            addExternalCamOption();
-                            alert("📱 EXTERNAL CAMERA CONNECTED!");
+                            // 既に登録されているストリームなら無視
+                            if (extCams.some(c => c.stream.id === remoteStream.id)) return;
+
+                            const camId = 'ext-cam-' + extCamCounter;
+                            const camName = '📱 CAM ' + extCamCounter;
+                            extCamCounter++;
+                            
+                            // カメラ用の専用ビデオ要素を生成
+                            const v = document.createElement('video');
+                            v.id = camId;
+                            v.className = 'hidden-media';
+                            v.autoplay = true;
+                            v.playsInline = true;
+                            v.muted = true; // ローカルループバック防止
+                            v.srcObject = remoteStream;
+                            document.getElementById('media-pool').appendChild(v);
+
+                            // 音声をミキサーに直接流し込む
+                            if (audioCtx && audioMixerDest) {
+                                try {
+                                    const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
+                                    streamSrc.connect(audioMixerDest);
+                                    streamSrc.connect(audioCtx.destination);
+                                } catch(e) {}
+                            }
+
+                            // 配列に保存してUIを更新
+                            extCams.push({ id: camId, name: camName, stream: remoteStream, videoEl: v });
+                            
+                            populateButtons('main', mainFiles);
+                            populateButtons('wipe', wipeFiles);
+                            
+                            alert(camName + " CONNECTED!");
                         });
                     }
                 });
@@ -825,8 +854,7 @@
                         const video = document.getElementById('viewer-video');
                         video.style.display = 'block';
                         video.srcObject = remoteStream;
-                        // コントロールUI群も表示
-                        document.getElementById('viewer-top-controls').style.display = 'flex';
+                        document.getElementById('unmute-btn').style.display = 'block';
                     });
                 });
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
