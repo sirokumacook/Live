@@ -21,7 +21,7 @@
         .btn { 
             background-color: transparent; color: var(--wrc-orange); border: 2px solid var(--wrc-orange); 
             padding: 15px 40px; font-size: 24px; margin: 10px; cursor: pointer; transition: all 0.3s ease; 
-            z-index: 10; position: relative; /* クリック不可になる現象を防ぐ */
+            z-index: 10; position: relative;
         }
         .btn:hover { background-color: var(--wrc-orange); color: var(--wrc-navy-dark); }
 
@@ -58,7 +58,7 @@
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; cursor: pointer; }
 
-        /* フリーズ防止用：見えないプールに隔離 */
+        /* 画面外に隔離して動画とストリーム用キャンバスを保持 */
         #media-pool {
             visibility: hidden; position: fixed; width: 1px; height: 1px; 
             overflow: hidden; pointer-events: none; z-index: -999;
@@ -71,7 +71,7 @@
         <h1 style="font-size: 60px; margin-bottom: 10px; color: white;">P2P RALLY BROADCAST</h1>
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
-        <div id="version-text">VER 4.1.0 (SYSTEM STABILITY FIX)</div>
+        <div id="version-text">VER 5.0.0 (DUAL CANVAS ENGINE)</div>
     </div>
 
     <div id="viewer-mode">
@@ -98,11 +98,12 @@
 
         <div id="controls">
             <div class="control-group" style="border-color: #4CAF50; min-width: 200px;">
-                <h3 style="color: #4CAF50;">BROADCAST SETTINGS</h3>
+                <h3 style="color: #4CAF50;">STREAM FPS (VIEWER)</h3>
                 <div style="display: flex; gap: 5px; margin-top: 10px;">
                     <button id="fps-24-btn" class="btn btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS<br>(LITE)</button>
                     <button id="fps-60-btn" class="btn btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS<br>(PRO)</button>
                 </div>
+                <p style="font-size: 10px; color: gray; margin-top: 5px;">※手元のプレビューは常に60FPSです</p>
             </div>
 
             <div class="control-group">
@@ -155,6 +156,8 @@
         </div>
 
         <div id="media-pool">
+            <canvas id="stream-canvas" width="1920" height="1080"></canvas>
+            
             <video id="main-video" autoplay loop playsinline muted></video>
             <img id="main-img">
             <video id="wipe-video" autoplay loop playsinline muted></video>
@@ -225,9 +228,9 @@
             if (file.type.startsWith('video/')) {
                 isMainVideo = true; 
                 const v = document.getElementById('main-video'); 
-                v.muted = false; // 動的にミュート解除
+                v.muted = false; 
                 v.src = url; 
-                v.play().catch(e=>console.warn("Main Play Error:", e));
+                v.play().catch(e=>console.warn(e));
             } else { isMainVideo = false; document.getElementById('main-img').src = url; }
         }
 
@@ -240,9 +243,9 @@
             if (file.type.startsWith('video/')) {
                 isWipeVideo = true; 
                 const v = document.getElementById('wipe-video'); 
-                v.muted = false; // 動的にミュート解除
+                v.muted = false; 
                 v.src = url; 
-                v.play().catch(e=>console.warn("Wipe Play Error:", e));
+                v.play().catch(e=>console.warn(e));
             } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
         }
 
@@ -252,7 +255,7 @@
             if (select.value === "") return;
             const player = document.getElementById('bgm-player');
             player.src = URL.createObjectURL(bgmFiles[select.value]);
-            player.play().catch(e=>console.warn("BGM Play Error:", e));
+            player.play().catch(e=>console.warn(e));
         }
         function stopBgm() { const p = document.getElementById('bgm-player'); p.pause(); p.currentTime = 0; }
 
@@ -278,10 +281,15 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 3. キャンバス描画エンジン
+        // 3. デュアル・キャンバス描画エンジン
         // ==========================================
+        // プレビュー用 (常に60FPS)
         const canvas = document.getElementById('composite-canvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        // P2P送信用 (targetFPSで制限)
+        const streamCanvas = document.getElementById('stream-canvas');
+        const streamCtx = streamCanvas.getContext('2d', { alpha: false });
 
         let wipeState = { status: 'HIDDEN', progress: 0 };
         let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; 
@@ -311,267 +319,3 @@
             } else if(!show && scheduleState.status === 'VISIBLE') {
                 scheduleState.status = 'OUT'; scheduleState.progress = 1;
             }
-        }
-
-        function drawImageCover(ctx, img, x, y, w, h) {
-            const imgW = img.videoWidth || img.naturalWidth || img.width; 
-            const imgH = img.videoHeight || img.naturalHeight || img.height;
-            if(!imgW || !imgH) return;
-            const ratio = Math.max(w / imgW, h / imgH);
-            const drawW = imgW * ratio, drawH = imgH * ratio;
-            const offsetX = x + (w - drawW) / 2, offsetY = y + (h - drawH) / 2;
-            ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-            ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
-        }
-
-        let lastDrawTime = 0;
-        let lastUpdate = performance.now();
-
-        function renderLoop(time) {
-            requestAnimationFrame(renderLoop);
-
-            const elapsed = time - lastDrawTime;
-            if (elapsed < (1000 / targetFPS) - 1) return; 
-            lastDrawTime = time;
-
-            const dt = (time - lastUpdate) / 1000;
-            lastUpdate = time;
-
-            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1920, 1080);
-            
-            const mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
-            drawImageCover(ctx, mainMedia, 0, 0, 1920, 1080);
-
-            const animSpeed = 2.5;
-            const fixedX = 50, fixedY = 750;
-
-            if (wipeState.status !== 'HIDDEN') {
-                if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
-                else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
-                
-                const ww = 480, wh = 270;
-                const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
-                ctx.save(); ctx.beginPath(); ctx.rect(fixedX, fixedY, ww, wh); ctx.clip();
-                if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                    const wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                    drawImageCover(ctx, wipeMedia, fixedX, fixedY, ww, wh);
-                    ctx.strokeStyle = '#ff5722'; ctx.lineWidth = 8; ctx.strokeRect(fixedX, fixedY, ww, wh);
-                }
-                if(wipeState.status === 'IN' || wipeState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, fixedY, ww, wh); }
-                ctx.restore();
-            }
-
-            if (infoState.status !== 'HIDDEN') {
-                if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
-                else if(infoState.status === 'OUT') { 
-                    infoState.progress -= dt*animSpeed; 
-                    if(infoState.progress<=0) {
-                        if(infoState.next){ infoState.active = infoState.next; infoState.next = null; infoState.status = 'IN'; infoState.progress = 0; }
-                        else { infoState.status = 'HIDDEN'; }
-                    }
-                }
-                
-                let iw = 480, ih = 100;
-                let textStr = "";
-                if(infoState.active === 'text') {
-                    textStr = document.getElementById('overlay-text-input').value || " ";
-                    ctx.font = "48px WRCCleanBold"; iw = Math.min(ctx.measureText(textStr).width + 60, 1000); ih = 100;
-                } else if(infoState.active === 'weather') {
-                    iw = 450; ih = 180;
-                }
-
-                const blockX = fixedX - iw + (iw * 2) * infoState.progress;
-                ctx.save(); ctx.beginPath(); ctx.rect(fixedX, fixedY, iw, ih); ctx.clip();
-                if(infoState.progress > 0.5 || infoState.status === 'VISIBLE') {
-                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(fixedX, fixedY, iw, ih);
-                    ctx.fillStyle = '#ff5722'; ctx.fillRect(fixedX, fixedY, 10, ih); 
-                    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                    if(infoState.active === 'text') {
-                        ctx.font = "48px WRCCleanBold"; ctx.fillText(textStr, fixedX + 30, fixedY + 25);
-                    } else {
-                        ctx.fillStyle = '#ff5722'; ctx.font = "24px WRCCleanBold"; ctx.fillText("WEATHER CONDITION", fixedX + 30, fixedY + 20);
-                        ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(fixedX + 30, fixedY + 55, iw - 50, 2);
-                        ctx.fillStyle = '#fff'; ctx.font = "32px WRCCleanBold";
-                        ctx.fillText(`COND: ${weatherData.cond}`, fixedX + 30, fixedY + 70);
-                        ctx.fillText(`TEMP: ${weatherData.temp}`, fixedX + 30, fixedY + 105);
-                        ctx.fillText(`WIND: ${weatherData.wind}`, fixedX + 30, fixedY + 140);
-                    }
-                }
-                if(infoState.status === 'IN' || infoState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, fixedY, iw, ih); }
-                ctx.restore();
-            }
-
-            if (scheduleState.status !== 'HIDDEN') {
-                if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
-                else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
-
-                // UIレイアウトを美しく修正
-                const sw = 900, sh = 130;
-                const sx = (1920 - sw) / 2;
-                const sy = 1080 - sh; 
-                const blockX = sx - sw + (sw * 2) * scheduleState.progress;
-
-                const now = new Date();
-                let targetH = 0, targetM = 0;
-                if (scheduleState.time) {
-                    const parts = scheduleState.time.split(':');
-                    targetH = parseInt(parts[0], 10);
-                    targetM = parseInt(parts[1], 10);
-                }
-                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
-                let diff = targetDate - now;
-                if (diff < 0) diff = 0; 
-                const diffSec = Math.floor(diff / 1000);
-                const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
-                const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
-                const ss = String(diffSec % 60).padStart(2, '0');
-                const countdownStr = `${hh}:${mm}:${ss}`;
-
-                ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
-                if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
-                    ctx.fillStyle = 'rgba(10, 25, 47, 0.95)'; ctx.fillRect(sx, sy, sw, sh);
-                    ctx.fillStyle = '#ff5722'; ctx.fillRect(sx, sy, sw, 6);
-
-                    // 左側: カウントダウン (中央揃えで配置)
-                    ctx.fillStyle = '#fff'; ctx.font = "bold 80px WRCCleanBold";
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText(countdownStr, sx + 220, sy + (sh / 2) + 5);
-
-                    // 区切り線
-                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                    ctx.fillRect(sx + 440, sy + 25, 2, sh - 50);
-
-                    // 右側: スケジュール情報
-                    ctx.fillStyle = '#ff5722'; ctx.font = "26px WRCCleanBold"; 
-                    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                    ctx.fillText("COMING UP NEXT", sx + 470, sy + 30);
-
-                    ctx.font = "40px WRCCleanBold";
-                    ctx.fillText("LOCAL", sx + 470, sy + 70);
-                    const localWidth = ctx.measureText("LOCAL ").width;
-                    
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 470 + localWidth, sy + 70);
-                }
-                if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, sy, sw, sh); }
-                ctx.restore();
-            }
-        }
-
-        // ==========================================
-        // 4. P2P WebRTC & Audio Mixer
-        // ==========================================
-        let peer = null;
-        let mixedStream = null;
-        let audioCtx = null;
-        let mixedAudioTrack = null;
-
-        function initAudioMixer() {
-            if(mixedAudioTrack) return mixedAudioTrack;
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-            const dest = audioCtx.createMediaStreamDestination();
-
-            const mainVideo = document.getElementById('main-video');
-            const wipeVideo = document.getElementById('wipe-video');
-            const bgmPlayer = document.getElementById('bgm-player');
-            
-            const src1 = audioCtx.createMediaElementSource(mainVideo);
-            const src2 = audioCtx.createMediaElementSource(bgmPlayer);
-            const src3 = audioCtx.createMediaElementSource(wipeVideo);
-            
-            src1.connect(dest); src1.connect(audioCtx.destination);
-            src2.connect(dest); src2.connect(audioCtx.destination);
-            src3.connect(dest); src3.connect(audioCtx.destination);
-
-            mixedAudioTrack = dest.stream.getAudioTracks()[0];
-            return mixedAudioTrack;
-        }
-
-        async function initBroadcast() {
-            try {
-                // ブラウザミュート解除＆ユーザー操作認証のクリア
-                document.getElementById('main-video').muted = false;
-                document.getElementById('wipe-video').muted = false;
-
-                fetchWeatherInBackground();
-
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('broadcast-mode').style.display = 'flex';
-                
-                const audioTrack = initAudioMixer();
-
-                if (!canvas.captureStream) {
-                    alert("お使いのブラウザは配信機能に非対応です。Chromeをご利用ください。");
-                    return;
-                }
-
-                const canvasStream = canvas.captureStream(60);
-                const videoTrack = canvasStream.getVideoTracks()[0];
-                mixedStream = new MediaStream([videoTrack, audioTrack]);
-
-                const displayId = Math.floor(1000 + Math.random() * 9000).toString();
-                const secureHostId = "wrc-p2p-" + displayId; 
-
-                peer = new Peer(secureHostId);
-                peer.on('open', () => { document.getElementById('my-peer-id').innerText = displayId; });
-
-                peer.on('connection', (conn) => {
-                    conn.on('data', (data) => {
-                        if (data && data.type === 'HELLO_HOST') {
-                            document.getElementById('p2p-status').innerText = "Viewer Connected!";
-                            document.getElementById('p2p-status').style.color = "yellow";
-                            peer.call(data.viewerId, mixedStream);
-                        }
-                    });
-                });
-
-                document.fonts.ready.then(() => { requestAnimationFrame(renderLoop); });
-            } catch (err) {
-                alert("起動エラーが発生しました: " + err.message);
-                console.error(err);
-            }
-        }
-
-        function initViewer() {
-            try {
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('viewer-mode').style.display = 'flex';
-                
-                peer = new Peer();
-                peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
-                
-                peer.on('call', (call) => {
-                    document.getElementById('viewer-status-text').innerText = "Receiving P2P Stream...";
-                    call.answer();
-                    call.on('stream', (remoteStream) => {
-                        document.getElementById('viewer-ui').style.display = 'none';
-                        const video = document.getElementById('viewer-video');
-                        video.style.display = 'block';
-                        video.srcObject = remoteStream;
-                        document.getElementById('unmute-btn').style.display = 'block';
-                    });
-                });
-            } catch (err) {
-                alert("起動エラーが発生しました: " + err.message);
-            }
-        }
-
-        function connectToHost() {
-            const inputId = document.getElementById('host-id-input').value.trim();
-            if (!inputId || inputId.length !== 4) return alert("4桁のIDを入力してください");
-            
-            const targetHostId = "wrc-p2p-" + inputId;
-            
-            document.getElementById('viewer-status-text').innerText = "Connecting...";
-            const conn = peer.connect(targetHostId, { reliable: true });
-            
-            conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            conn.on('error', () => { 
-                document.getElementById('viewer-status-text').innerText = "Error: Connection Failed";
-                alert("接続に失敗しました。IDが正しいか確認してください。"); 
-            });
-        }
-    </script>
-</body>
-</html>
