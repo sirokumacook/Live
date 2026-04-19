@@ -65,12 +65,12 @@
         .btn-small:hover { background: rgba(255, 87, 34, 0.3); }
         .flex-row { display: flex; gap: 5px; margin-bottom: 5px; }
 
-        /* ワンタップボタン用のコンテナ */
         .media-btn-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; min-height: 32px; }
         .media-track-btn { flex-grow: 1; padding: 5px; font-size: 12px; border: 1px solid gray; color: gray; background: transparent; cursor: pointer; min-width: 30px; text-align: center; }
         .media-track-btn.active { border-color: var(--wrc-orange); color: var(--wrc-orange); background: rgba(255,87,34,0.1); font-weight: bold; }
+        
+        select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
 
-        /* 動画フリーズ回避 */
         .hidden-media { position: fixed; top: -9999px; left: -9999px; width: 1280px; height: 720px; z-index: -9999; }
     </style>
 </head>
@@ -81,7 +81,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 11.0.0 (ONE-TAP UI & END BROADCAST)</div>
+        <div id="version-text">VER 12.0.0 (AUDIO GC FIX & TEXT PRESETS)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -124,7 +124,7 @@
         <div id="controls">
             <div class="control-group" style="border-color: #f44336; min-width: 180px;">
                 <h3 style="color: #f44336; border-color: #f44336;">SYSTEM</h3>
-                <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 10px; font-weight: bold;">END BROADCAST<br>(配信終了)</button>
+                <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 10px; font-weight: bold;">END BROADCAST</button>
                 <div class="flex-row">
                     <button id="fps-24-btn" class="btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS</button>
                     <button id="fps-60-btn" class="btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS</button>
@@ -137,13 +137,13 @@
             </div>
 
             <div class="control-group">
-                <h3>MAIN MEDIA</h3>
+                <h3>MAIN MEDIA (MAX 9)</h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <div id="main-btn-list" class="media-btn-list"></div>
             </div>
             
             <div class="control-group">
-                <h3>WIPE (LEFT BOTTOM)</h3>
+                <h3>WIPE (MAX 9)</h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <div id="wipe-btn-list" class="media-btn-list"></div>
                 <div class="flex-row">
@@ -155,6 +155,13 @@
             <div class="control-group">
                 <h3>TEXT & WEATHER</h3>
                 <input type="text" id="overlay-text-input" placeholder="TEXT..." oninput="saveSetting('wrc_text', this.value)" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
+                <div class="flex-row" style="margin-bottom: 10px;">
+                    <select id="text-preset-select" class="file-select" style="width: 70%; margin-bottom: 0;" onchange="loadTextPreset()">
+                        <option value="">Presets...</option>
+                    </select>
+                    <button class="btn-small" onclick="saveTextPreset()" style="width: 15%;">SAVE</button>
+                    <button class="btn-small" onclick="deleteTextPreset()" style="border-color: #f44336; color: #f44336; width: 15%;">DEL</button>
+                </div>
                 <div class="flex-row">
                     <button class="btn-small" onclick="activateInfo('text')">TXT ON</button>
                     <button class="btn-small" onclick="activateInfo('weather')">WTH ON</button>
@@ -197,9 +204,9 @@
 
     <script>
         // ==========================================
-        // 0. ローカルデータベース構築 (バグ耐性強化版)
+        // 0. ローカルデータベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB5";
+        const dbName = "WrcBroadcastDB6";
         let db;
         let viewerConns = [];
 
@@ -211,7 +218,7 @@
                     if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
                 };
                 req.onsuccess = e => { db = e.target.result; resolve(); };
-                req.onerror = e => { console.warn("IndexedDB Error", e); resolve(); }; // エラーでも止めない
+                req.onerror = e => { resolve(); }; 
             });
         }
 
@@ -220,7 +227,7 @@
             try {
                 const tx = db.transaction('files', 'readwrite');
                 tx.objectStore('files').put(files, key);
-            } catch(e) { console.warn("Failed to save files to DB. Device might not support it.", e); }
+            } catch(e) {}
         }
 
         function loadFilesFromDB(key) {
@@ -250,10 +257,11 @@
                 document.getElementById('schedule-time').value = loadSetting('wrc_time', '12:00');
                 document.getElementById('schedule-text').value = loadSetting('wrc_stext', 'STAGE 1');
                 
+                initTextPresets();
+
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
 
-                // Auto DJ 連鎖再生
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
             } catch(e) {}
         };
@@ -270,7 +278,48 @@
         window.addEventListener('resize', resizePreview);
 
         // ==========================================
-        // 1. 天気取得システム
+        // 1. テキストプリセット機能
+        // ==========================================
+        let textPresets = [];
+        function initTextPresets() {
+            try { textPresets = JSON.parse(loadSetting('wrc_text_presets', '[]')); } catch(e){ textPresets = []; }
+            updateTextPresetUI();
+        }
+        function updateTextPresetUI() {
+            const sel = document.getElementById('text-preset-select');
+            sel.innerHTML = '<option value="">Presets...</option>';
+            textPresets.forEach((p, i) => {
+                const shortText = p.length > 15 ? p.substring(0,15)+'...' : p;
+                sel.add(new Option(shortText, i));
+            });
+        }
+        function saveTextPreset() {
+            const val = document.getElementById('overlay-text-input').value.trim();
+            if(!val) return;
+            if(!textPresets.includes(val)) {
+                textPresets.push(val);
+                saveSetting('wrc_text_presets', JSON.stringify(textPresets));
+                updateTextPresetUI();
+                document.getElementById('text-preset-select').value = textPresets.length - 1;
+            }
+        }
+        function deleteTextPreset() {
+            const sel = document.getElementById('text-preset-select');
+            if(sel.value === "") return;
+            textPresets.splice(parseInt(sel.value), 1);
+            saveSetting('wrc_text_presets', JSON.stringify(textPresets));
+            updateTextPresetUI();
+            document.getElementById('overlay-text-input').value = "";
+        }
+        function loadTextPreset() {
+            const sel = document.getElementById('text-preset-select');
+            if(sel.value === "") return;
+            document.getElementById('overlay-text-input').value = textPresets[parseInt(sel.value)];
+            saveSetting('wrc_text', textPresets[parseInt(sel.value)]);
+        }
+
+        // ==========================================
+        // 2. 天気取得システム
         // ==========================================
         let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
         function fetchWeatherInBackground() {
@@ -291,25 +340,22 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. ワンタップメディア制御エンジン
+        // 3. ワンタップメディア制御エンジン
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
 
         function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 
-        // 新機能：ワンタップボタンの生成
         function populateButtons(type, files) {
             const container = document.getElementById(`${type}-btn-list`);
             container.innerHTML = '';
             
-            // 外部カメラが接続されていればボタン追加
             if ((type === 'main' || type === 'wipe') && extCamConnected) {
                 const btn = document.createElement('button');
                 btn.className = `media-track-btn`;
                 btn.innerText = '📱 CAM';
-                btn.style.color = '#e91e63';
-                btn.style.borderColor = '#e91e63';
+                btn.style.color = '#e91e63'; btn.style.borderColor = '#e91e63';
                 btn.onclick = () => {
                     if(type === 'main') switchMainMedia('ext-cam', btn);
                     if(type === 'wipe') switchWipeMedia('ext-cam', btn);
@@ -320,8 +366,8 @@
             files.forEach((f, i) => {
                 const btn = document.createElement('button');
                 btn.className = `media-track-btn`;
-                btn.innerText = (i + 1).toString(); // シンプルに番号表示
-                btn.title = f.name; // ホバーでファイル名
+                btn.innerText = (i + 1).toString();
+                btn.title = f.name;
                 btn.onclick = () => {
                     if(type === 'main') switchMainMedia(i, btn);
                     if(type === 'wipe') switchWipeMedia(i, btn);
@@ -330,7 +376,6 @@
                 container.appendChild(btn);
             });
 
-            // 自動的に1番目を選択して再生
             if (files.length > 0) {
                 const firstBtn = container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0];
                 if(type === 'main') switchMainMedia(0, firstBtn);
@@ -345,10 +390,10 @@
             populateButtons('wipe', wipeFiles);
         }
 
-        // ファイルを選択した直後にアップロード＆ボタン生成
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
-            const files = Array.from(input.files);
+            // MAINとWIPEは最大9個までに制限
+            const files = Array.from(input.files).slice(0, 9);
             if(files.length === 0) return;
             if(type === 'main') { mainFiles = files; saveFilesToDB('main', files); populateButtons('main', files); }
             if(type === 'wipe') { wipeFiles = files; saveFilesToDB('wipe', files); populateButtons('wipe', files); toggleWipe(true); }
@@ -361,7 +406,6 @@
             bgmFiles = files; saveFilesToDB('bgm', files); populateButtons('bgm', files);
         }
 
-        // アクティブなボタンのハイライトを更新
         function updateActiveButton(containerId, activeBtn) {
             document.querySelectorAll(`#${containerId} .media-track-btn`).forEach(b => b.classList.remove('active'));
             if(activeBtn) activeBtn.classList.add('active');
@@ -402,7 +446,6 @@
             resumeAudio();
             if (bgmFiles.length === 0) return;
             
-            // ボタンが直接指定されていない場合（AutoDJ）、UIのインデックスを探してハイライト
             if(!btnElement) {
                 const btns = document.querySelectorAll(`#bgm-btn-list .media-track-btn`);
                 if(btns[idx]) btnElement = btns[idx];
@@ -448,26 +491,17 @@
         function toggleLogo(show) { logoState = show; }
 
         // ==========================================
-        // 3. 配信終了機能 (END BROADCAST)
+        // 4. 配信終了機能
         // ==========================================
         function endBroadcast() {
             const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
             if (!confirmEnd) return;
-
-            // 視聴者に終了シグナルを送信
-            viewerConns.forEach(conn => {
-                if(conn.open) conn.send({ type: 'END_BROADCAST' });
-            });
-
-            // 自身もリロードして完全リセット
-            setTimeout(() => {
-                location.reload();
-            }, 500);
+            viewerConns.forEach(conn => { if(conn.open) conn.send({ type: 'END_BROADCAST' }); });
+            setTimeout(() => { location.reload(); }, 500);
         }
 
-
         // ==========================================
-        // 4. キャンバス描画エンジン
+        // 5. キャンバス描画エンジン
         // ==========================================
         const compositeCanvas = document.getElementById('composite-canvas');
         const compCtx = compositeCanvas.getContext('2d');
@@ -646,15 +680,17 @@
         }
 
         // ==========================================
-        // 5. P2P WebRTC & Audio Mixer
+        // 6. P2P WebRTC & Audio Mixer (GC対策完了版)
         // ==========================================
         let peer = null;
         let mixedStream = null;
         let audioCtx = null;
+        let mixedAudioTrack = null;
+        let audioNodes = {}; // ガベージコレクション回避用オブジェクト
 
         function initAudioMixer() {
             try {
-                if(audioCtx) return;
+                if(audioCtx) return mixedAudioTrack;
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AudioContext();
                 const dest = audioCtx.createMediaStreamDestination();
@@ -664,12 +700,19 @@
                 const bgmPlayer = document.getElementById('bgm-player');
                 const extCamVideo = document.getElementById('ext-cam-video');
                 
-                [mainVideo, bgmPlayer, wipeVideo, extCamVideo].forEach(media => {
-                    const src = audioCtx.createMediaElementSource(media);
+                // GCを回避するため、必ずグローバルオブジェクトに保持する
+                audioNodes.main = audioCtx.createMediaElementSource(mainVideo);
+                audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo);
+                audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
+                audioNodes.ext = audioCtx.createMediaElementSource(extCamVideo);
+
+                Object.values(audioNodes).forEach(src => {
                     src.connect(dest);
+                    src.connect(audioCtx.destination); // 視聴用・配信用両方に接続
                 });
 
-                return dest.stream.getAudioTracks()[0];
+                mixedAudioTrack = dest.stream.getAudioTracks()[0];
+                return mixedAudioTrack;
             } catch(e) { return null; }
         }
 
@@ -763,8 +806,6 @@
             const conn = peer.connect(targetHostId, { reliable: true });
             
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            
-            // 配信終了の受信
             conn.on('data', (data) => {
                 if(data && data.type === 'END_BROADCAST') {
                     alert("ホストが配信を終了しました");
@@ -774,9 +815,6 @@
             conn.on('error', () => { alert("接続エラー"); });
         }
 
-        // ==========================================
-        // 6. EXTERNAL CAMERA
-        // ==========================================
         let extCamStream = null;
         async function initExternalCam() {
             try {
