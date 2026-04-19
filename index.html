@@ -72,10 +72,10 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
 
-        /* 動画フリーズ＆真っ黒化回避：画面外ではなく、画面の端に透明にして配置し、ブラウザの省エネ処理を騙す */
+        /* ブラウザの省エネ回避用：画面左上に極小かつ透明で配置 */
         .hidden-media { 
-            position: fixed; top: 10px; left: 10px; 
-            width: 320px; height: 180px; opacity: 0.01; 
+            position: absolute; top: 10px; left: 10px; 
+            width: 10px; height: 10px; opacity: 0.01; 
             pointer-events: none; z-index: -999; 
         }
     </style>
@@ -87,7 +87,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 14.1.0 (BLACK SCREEN & MULTI-CAM FIX)</div>
+        <div id="version-text">VER 15.0.0 (STABLE SINGLE CAM & RADIO)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -145,6 +145,15 @@
                     <button class="btn-small" onclick="toggleLogo(true)" style="border-color: #e91e63; color: #e91e63;">LOGO ON</button>
                     <button class="btn-small" onclick="toggleLogo(false)" style="border-color: gray; color: gray;">OFF</button>
                 </div>
+            </div>
+
+            <div class="control-group" style="border-color: #00bcd4; min-width: 150px;">
+                <h3 style="color: #00bcd4; border-color: #00bcd4;">RADIO (MIC)</h3>
+                <div class="flex-row" style="margin-top: 10px;">
+                    <button class="btn-small" onclick="toggleRadio(true)" style="border-color: #00bcd4; color: #00bcd4; width: 50%;">MIC ON</button>
+                    <button class="btn-small" onclick="toggleRadio(false)" style="border-color: gray; color: gray; width: 50%;">MIC OFF</button>
+                </div>
+                <p style="font-size:10px; color:#aaa; margin-top:5px;">※声と波形が放送に乗ります</p>
             </div>
 
             <div class="control-group">
@@ -209,7 +218,8 @@
             <video id="wipe-video" class="hidden-media" loop playsinline></video>
             <img id="wipe-img" class="hidden-media">
             <audio id="bgm-player" class="hidden-media"></audio>
-            </div>
+            <video id="ext-cam-video" class="hidden-media" autoplay playsinline muted></video>
+        </div>
     </div>
 
     <script>
@@ -356,7 +366,7 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. ワンタップメディア ＆ マルチカメラエンジン
+        // 2. ワンタップメディア ＆ 外部カメラエンジン (1台のみ安定版)
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = null, isWipeVideo = null;
@@ -365,8 +375,7 @@
         let activeWipeMedia = null;
         let activeBgmMedia = null;
 
-        let extCams = []; 
-        let extCamCounter = 1;
+        let extCamConnected = false; 
 
         function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 
@@ -374,21 +383,19 @@
             const container = document.getElementById(`${type}-btn-list`);
             container.innerHTML = '';
             
-            if (type === 'main' || type === 'wipe') {
-                extCams.forEach(cam => {
-                    const btn = document.createElement('button');
-                    btn.className = `media-track-btn`;
-                    if ((type === 'main' && activeMainMedia === cam.id) || (type === 'wipe' && activeWipeMedia === cam.id)) {
-                        btn.classList.add('active');
-                    }
-                    btn.innerText = cam.name;
-                    btn.style.color = '#e91e63'; btn.style.borderColor = '#e91e63';
-                    btn.onclick = () => {
-                        if(type === 'main') { activeMainMedia = cam.id; switchMainMedia(cam.id, btn); }
-                        if(type === 'wipe') { activeWipeMedia = cam.id; switchWipeMedia(cam.id, btn); }
-                    };
-                    container.appendChild(btn);
-                });
+            if ((type === 'main' || type === 'wipe') && extCamConnected) {
+                const btn = document.createElement('button');
+                btn.className = `media-track-btn`;
+                if ((type === 'main' && activeMainMedia === 'ext-cam') || (type === 'wipe' && activeWipeMedia === 'ext-cam')) {
+                    btn.classList.add('active');
+                }
+                btn.innerText = '📱 EXT CAM';
+                btn.style.color = '#e91e63'; btn.style.borderColor = '#e91e63';
+                btn.onclick = () => {
+                    if(type === 'main') { activeMainMedia = 'ext-cam'; switchMainMedia('ext-cam', btn); }
+                    if(type === 'wipe') { activeWipeMedia = 'ext-cam'; switchWipeMedia('ext-cam', btn); }
+                };
+                container.appendChild(btn);
             }
 
             files.forEach((f, i) => {
@@ -408,10 +415,10 @@
             });
 
             if (files.length > 0 && activeMainMedia === null && type === 'main') {
-                activeMainMedia = 0; switchMainMedia(0, container.querySelectorAll('.media-track-btn')[extCams.length]);
+                activeMainMedia = 0; switchMainMedia(0, container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0]);
             }
             if (files.length > 0 && activeWipeMedia === null && type === 'wipe') {
-                activeWipeMedia = 0; switchWipeMedia(0, container.querySelectorAll('.media-track-btn')[extCams.length]);
+                activeWipeMedia = 0; switchWipeMedia(0, container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0]);
             }
         }
 
@@ -439,9 +446,7 @@
             resumeAudio();
             updateActiveButton('main-btn-list', btnElement);
 
-            if(typeof idxOrId === 'string' && idxOrId.startsWith('ext-cam-')) { 
-                isMainVideo = idxOrId; return; 
-            }
+            if(idxOrId === "ext-cam") { isMainVideo = 'ext-cam'; return; }
             
             const file = mainFiles[idxOrId];
             if(!file) return;
@@ -456,9 +461,7 @@
             resumeAudio();
             updateActiveButton('wipe-btn-list', btnElement);
 
-            if(typeof idxOrId === 'string' && idxOrId.startsWith('ext-cam-')) { 
-                isWipeVideo = idxOrId; toggleWipe(true); return; 
-            }
+            if(idxOrId === "ext-cam") { isWipeVideo = 'ext-cam'; toggleWipe(true); return; }
 
             const file = wipeFiles[idxOrId];
             if(!file) return;
@@ -494,8 +497,7 @@
 
         function stopBgm() { 
             const p = document.getElementById('bgm-player'); p.pause(); 
-            activeBgmMedia = null;
-            updateActiveButton('bgm-btn-list', null);
+            activeBgmMedia = null; updateActiveButton('bgm-btn-list', null);
         }
 
         let targetFPS = 24;
@@ -520,9 +522,6 @@
         }
         function toggleLogo(show) { logoState = show; }
 
-        // ==========================================
-        // 4. 配信終了機能 
-        // ==========================================
         function endBroadcast() {
             const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
             if (!confirmEnd) return;
@@ -531,7 +530,48 @@
         }
 
         // ==========================================
-        // 5. キャンバス描画エンジン (フリーズ完全防止版)
+        // 3. RADIO (MIC) 機能
+        // ==========================================
+        let micStream = null;
+        let micNode = null;
+        let analyser = null;
+        let dataArray = null;
+        let radioState = { status: 'HIDDEN', progress: 0 };
+
+        async function toggleRadio(show) {
+            if (show) {
+                if (radioState.status !== 'HIDDEN') return;
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    if(!audioCtx) initAudioMixer(); // ensure context exists
+                    micNode = audioCtx.createMediaStreamSource(micStream);
+                    
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 64; // 波形データの解像度
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    micNode.connect(analyser);
+                    analyser.connect(audioMixerDest); // 配信用のミキサーにだけ接続 (ループバック防止)
+                    
+                    radioState.status = 'IN';
+                    radioState.progress = 0;
+                } catch(e) {
+                    alert("マイクのアクセスが拒否されました");
+                }
+            } else {
+                if (radioState.status === 'HIDDEN' || radioState.status === 'OUT') return;
+                if (micStream) {
+                    micStream.getTracks().forEach(t => t.stop());
+                    micStream = null;
+                }
+                if (micNode) { micNode.disconnect(); analyser.disconnect(); }
+                radioState.status = 'OUT';
+                radioState.progress = 1;
+            }
+        }
+
+        // ==========================================
+        // 4. キャンバス描画エンジン
         // ==========================================
         const compositeCanvas = document.getElementById('composite-canvas');
         const compCtx = compositeCanvas.getContext('2d');
@@ -579,20 +619,16 @@
             lastUpdate = time;
 
             // 外部カメラのフリーズ防止（強制再生パルス）
-            extCams.forEach(cam => {
-                if (cam.videoEl && cam.videoEl.paused) {
-                    cam.videoEl.play().catch(()=>{});
-                }
-            });
+            const extCamVideo = document.getElementById('ext-cam-video');
+            if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) {
+                extCamVideo.play().catch(()=>{});
+            }
 
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
             let mainMedia;
-            if (typeof isMainVideo === 'string' && isMainVideo.startsWith('ext-cam-')) {
-                mainMedia = document.getElementById(isMainVideo);
-            } else {
-                mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
-            }
+            if (isMainVideo === 'ext-cam') mainMedia = extCamVideo;
+            else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
             drawImageCover(compCtx, mainMedia, 0, 0, 1920, 1080);
 
             if(logoState && logoImg.src && logoImg.width) {
@@ -601,8 +637,41 @@
             }
 
             const animSpeed = 2.5;
-            const fixedX = 50, fixedY = 800;
+            const fixedX = 50, fixedY = 800; // Wipe, Text
 
+            // RADIO (MIC) 描画 - 少し上の 650 に配置
+            if (radioState.status !== 'HIDDEN') {
+                if(radioState.status === 'IN') { radioState.progress += dt*animSpeed; if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} }
+                else if(radioState.status === 'OUT') { radioState.progress -= dt*animSpeed; if(radioState.progress<=0){radioState.status='HIDDEN';} }
+                
+                const rw = 400, rh = 100, rx = 50, ry = 650;
+                const blockX = rx - rw + (rw * 2) * radioState.progress;
+                
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
+                    
+                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
+
+                    // 波形アニメーション描画
+                    if (analyser && dataArray) {
+                        analyser.getByteFrequencyData(dataArray);
+                        const barWidth = 8; const gap = 4; const startX = rx + 200;
+                        for (let i = 0; i < 16; i++) {
+                            const val = dataArray[i];
+                            const barHeight = Math.max((val / 255) * 60, 4); // 最小4px
+                            compCtx.fillStyle = '#ff5722';
+                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - barHeight)/2, barWidth, barHeight);
+                        }
+                    }
+                }
+                if(radioState.status === 'IN' || radioState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
+                compCtx.restore();
+            }
+
+            // WIPE
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
@@ -613,11 +682,8 @@
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
                     let wipeMedia;
-                    if (typeof isWipeVideo === 'string' && isWipeVideo.startsWith('ext-cam-')) {
-                        wipeMedia = document.getElementById(isWipeVideo);
-                    } else {
-                        wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
-                    }
+                    if (isWipeVideo === 'ext-cam') wipeMedia = extCamVideo;
+                    else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
                     drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
                     compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
                 }
@@ -625,6 +691,7 @@
                 compCtx.restore();
             }
 
+            // TEXT & WEATHER
             if (infoState.status !== 'HIDDEN') {
                 if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
                 else if(infoState.status === 'OUT') { 
@@ -663,6 +730,7 @@
                 compCtx.restore();
             }
 
+            // SCHEDULE
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
@@ -724,7 +792,7 @@
         }
 
         // ==========================================
-        // 6. P2P WebRTC & Audio Mixer
+        // 5. P2P WebRTC & Audio Mixer
         // ==========================================
         let peer = null;
         let mixedStream = null;
@@ -789,27 +857,13 @@
                     if (call.metadata && call.metadata.type === 'ext-cam') {
                         call.answer(); 
                         call.on('stream', (remoteStream) => {
-                            if (extCams.some(c => c.stream.id === remoteStream.id)) return;
+                            if(extCamConnected) return; // 1台のみ接続許可
+                            
+                            const extVideo = document.getElementById('ext-cam-video');
+                            extVideo.srcObject = remoteStream;
+                            extVideo.onloadedmetadata = () => { extVideo.play().catch(()=>{}); };
 
-                            const camId = 'ext-cam-' + extCamCounter;
-                            const camName = '📱 CAM ' + extCamCounter;
-                            extCamCounter++;
-                            
-                            const v = document.createElement('video');
-                            v.id = camId;
-                            v.className = 'hidden-media';
-                            v.autoplay = true;
-                            v.playsInline = true;
-                            v.muted = true;
-                            v.srcObject = remoteStream;
-                            
-                            // カメラが受信されたら確実に再生させる
-                            v.addEventListener('loadedmetadata', () => {
-                                v.play().catch(e => console.warn("ExtCam Play Error:", e));
-                            });
-                            
-                            document.getElementById('media-pool').appendChild(v);
-
+                            // 音声接続
                             if (audioCtx && audioMixerDest) {
                                 try {
                                     const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
@@ -818,12 +872,11 @@
                                 } catch(e) {}
                             }
 
-                            extCams.push({ id: camId, name: camName, stream: remoteStream, videoEl: v });
-                            
+                            extCamConnected = true;
                             populateButtons('main', mainFiles);
                             populateButtons('wipe', wipeFiles);
                             
-                            alert(camName + " CONNECTED!");
+                            alert("📱 EXTERNAL CAMERA CONNECTED!");
                         });
                     }
                 });
@@ -861,8 +914,6 @@
                         const video = document.getElementById('viewer-video');
                         video.style.display = 'block';
                         video.srcObject = remoteStream;
-                        
-                        // フルスクリーン＆消音解除ボタン群を表示する
                         document.getElementById('viewer-top-controls').style.display = 'flex';
                     });
                 });
@@ -893,17 +944,20 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // カメラをフルHD(1920x1080)の高画質で要求
-                extCamStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    }, 
+                // 完全なフルHDを要求する
+                const constraints = { 
+                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
                     audio: true 
-                });
-                document.getElementById('extcam-preview').srcObject = extCamStream;
+                };
                 
+                try {
+                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch(e) {
+                    // フルHDがサポートされていない場合のフォールバック
+                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+                }
+
+                document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer();
                 peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (FULL HD). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
