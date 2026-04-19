@@ -65,7 +65,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 25.0.0 (WEBRTC TRACK FIX & FULL HD)</div>
+        <div id="version-text">VER 26.0.0 (WEBRTC TRACK & DECODE FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -91,7 +91,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (FULL HD)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready (HD)</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -102,24 +102,27 @@
         </div>
 
         <div id="preview-wrapper">
-            <div id="media-pool" style="position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: -999;">
-                <video id="main-video" loop playsinline muted></video>
-                <img id="main-img">
-                <video id="wipe-video" loop playsinline muted></video>
-                <img id="wipe-img">
-                <audio id="bgm-player"></audio>
-                <video id="ext-cam-video" autoplay playsinline muted></video>
+            
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1;">
+                <div id="media-pool" style="width: 1920px; height: 1080px; position: relative;">
+                    <video id="main-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <img id="main-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
+                    <video id="wipe-video" loop playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <img id="wipe-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
+                    <audio id="bgm-player"></audio>
+                    <video id="ext-cam-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                </div>
             </div>
 
-            <div id="main-preview-area">
+            <div id="main-preview-area" style="z-index: 5;">
                 <div class="preview-label" style="background: var(--wrc-navy);">PREVIEW (NO LOGO / 60FPS)</div>
                 <canvas id="composite-canvas" class="preview-media" width="1920" height="1080"></canvas>
             </div>
 
-            <div id="side-preview-area">
+            <div id="side-preview-area" style="z-index: 5;">
                 <div class="side-box" id="extcam-monitor-box">
                     <div class="preview-label" style="background: #e91e63;">EXT CAM MONITOR</div>
-                    <video id="extcam-monitor-video" class="preview-media" autoplay playsinline muted style="transform: scaleX(-1); /* 鏡合わせ防止 */"></video>
+                    <video id="extcam-monitor-video" class="preview-media" autoplay playsinline muted style="transform: scaleX(-1);"></video>
                     <div id="extcam-offline-text" style="color: gray; font-size: 14px; position: absolute;">NO CAMERA SIGNAL</div>
                 </div>
                 <div class="side-box" id="final-monitor-box">
@@ -129,7 +132,7 @@
             </div>
         </div>
 
-        <div id="controls">
+        <div id="controls" style="z-index: 10; position: relative;">
             <div class="control-group" style="border-color: #f44336; min-width: 180px;">
                 <h3 style="color: #f44336; border-color: #f44336;">SYSTEM</h3>
                 <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 10px; font-weight: bold;">END BROADCAST</button>
@@ -217,13 +220,16 @@
 
     <script>
         // ==========================================
-        // 0. 通信設定 (Google STUNサーバー)
+        // 0. 通信設定
         // ==========================================
         const peerConfig = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' }
                 ]
             }
         };
@@ -245,7 +251,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB14";
+        const dbName = "WrcBroadcastDB15";
         let db;
         let viewerConns = [];
 
@@ -299,6 +305,20 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
+
+                // カメラ監視のハートビート（絶対に止まらせない）
+                setInterval(() => {
+                    const extCamVideo = document.getElementById('ext-cam-video');
+                    if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) {
+                        const playPromise = extCamVideo.play();
+                        if (playPromise !== undefined) playPromise.catch(()=>{});
+                    }
+                    const monVideo = document.getElementById('extcam-monitor-video');
+                    if (monVideo && monVideo.srcObject && monVideo.paused) {
+                        const playPromise = monVideo.play();
+                        if (playPromise !== undefined) playPromise.catch(()=>{});
+                    }
+                }, 2000);
             } catch(e) {}
         };
 
@@ -440,9 +460,7 @@
             updateActiveButton('main-btn-list', btnElement);
 
             if(idxOrType === "ext-cam") { 
-                isMainVideo = 'ext-cam'; 
-                activeMainMedia = 'ext-cam'; 
-                return; 
+                isMainVideo = 'ext-cam'; activeMainMedia = 'ext-cam'; return; 
             }
             
             const file = mainFiles[idxOrType];
@@ -461,10 +479,7 @@
             updateActiveButton('wipe-btn-list', btnElement);
 
             if(idxOrType === "ext-cam") { 
-                isWipeVideo = 'ext-cam'; 
-                activeWipeMedia = 'ext-cam'; 
-                toggleWipe(true); 
-                return; 
+                isWipeVideo = 'ext-cam'; activeWipeMedia = 'ext-cam'; toggleWipe(true); return; 
             }
 
             const file = wipeFiles[idxOrType];
@@ -653,9 +668,6 @@
                     micGain.gain.value = (radioState.status !== 'HIDDEN') ? 1 : 0;
                 }
             }
-
-            const extCamVideo = document.getElementById('ext-cam-video');
-            if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
 
             // ==================
             // 左側プレビューの描画 (60FPS / NO LOGO)
@@ -931,36 +943,21 @@
                         extCamCall = call;
                         call.answer(); 
                         
-                        // 【超重要：PeerJSの受け取り漏れを完全ブロック】
-                        call.on('stream', (remoteStream) => {
+                        const handleStream = (remoteStream) => {
                             const extVideo = document.getElementById('ext-cam-video');
                             const monitorVideo = document.getElementById('extcam-monitor-video');
                             
-                            // ストリームをセット
-                            if (extVideo) { extVideo.srcObject = remoteStream; }
-                            if (monitorVideo) { monitorVideo.srcObject = remoteStream; document.getElementById('extcam-offline-text').style.display = 'none'; }
-
-                            // ①メタデータがロードされたら強制再生
-                            extVideo.onloadedmetadata = () => extVideo.play().catch(e=>console.warn(e));
-                            monitorVideo.onloadedmetadata = () => monitorVideo.play().catch(e=>console.warn(e));
-                            
-                            // ②後から映像トラックが追加されたら、srcObjectを再定義して映像を引っこ抜く
-                            remoteStream.onaddtrack = () => {
+                            // srcObjectの上書きと強制再生
+                            if (extVideo.srcObject !== remoteStream) {
                                 extVideo.srcObject = remoteStream;
-                                monitorVideo.srcObject = remoteStream;
                                 extVideo.play().catch(()=>{});
-                            };
-
-                            // ③それでも横幅が0なら、1秒ごとに再接続を試みる絶対映すマン機能
-                            let checkVideoInterval = setInterval(() => {
-                                if (extVideo.videoWidth > 0) {
-                                    clearInterval(checkVideoInterval);
-                                } else {
-                                    extVideo.srcObject = remoteStream;
-                                    monitorVideo.srcObject = remoteStream;
-                                    extVideo.play().catch(()=>{});
-                                }
-                            }, 1000);
+                            }
+                            if (monitorVideo && monitorVideo.srcObject !== remoteStream) {
+                                monitorVideo.srcObject = remoteStream;
+                                monitorVideo.play().catch(()=>{});
+                            }
+                            
+                            document.getElementById('extcam-offline-text').style.display = 'none';
 
                             if(!extCamConnected) {
                                 extCamConnected = true;
@@ -973,9 +970,22 @@
                                 document.getElementById('cam-control-group').style.display = 'flex';
                                 populateButtons('main', mainFiles);
                                 populateButtons('wipe', wipeFiles);
+                                resizePreview();
                                 alert("📱 EXTERNAL CAMERA CONNECTED!");
                             }
-                        });
+                        };
+
+                        // PeerJSの標準イベント
+                        call.on('stream', handleStream);
+                        
+                        // 【WebRTCの根本イベント監視】遅れて到着する映像トラックを逃さない究極のフォールバック
+                        if (call.peerConnection) {
+                            call.peerConnection.addEventListener('track', (event) => {
+                                if (event.streams && event.streams[0]) {
+                                    handleStream(event.streams[0]);
+                                }
+                            });
+                        }
                         
                         call.on('close', () => { disconnectExtCamHost(); });
                     }
@@ -1044,9 +1054,9 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // 完全なFULL HDを強要
+                // 【限界突破・最高画質】可能な限り高解像度(FULL HD)での取得を強要する
                 const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                    video: { facingMode: 'environment', width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 } }, 
                     audio: { echoCancellation: true, noiseSuppression: true } 
                 };
                 
