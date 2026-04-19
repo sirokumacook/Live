@@ -39,7 +39,7 @@
         input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
         .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
 
-        /* ----- 共通スケールエリア ----- */
+        /* ----- 共通スケールエリア (放送ホスト用) ----- */
         .scale-area {
             width: 1920px; height: 1080px; position: absolute; top: 50%; left: 50%; 
             transform-origin: center center; transform: translate(-50%, -50%);
@@ -75,7 +75,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 9.0.0 (PURE LOCAL & EXT CAM)</div>
+        <div id="version-text">VER 9.1.0 (NATIVE PLAYER ENABLED)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -88,9 +88,8 @@
             <div id="viewer-status-text" class="status-text">Ready</div>
         </div>
         
-        <div class="scale-area" id="viewer-scale-area">
-            <video id="viewer-video" autoplay playsinline muted style="position: absolute; top:0; left:0; width:1920px; height:1080px; object-fit: cover; z-index: 2;"></video>
-        </div>
+        <video id="viewer-video" class="fullscreen-video" controls autoplay playsinline muted style="display: none; background: #000; z-index: 2;"></video>
+        
         <button id="unmute-btn" onclick="document.getElementById('viewer-video').muted = false; this.style.display='none';">🔊 UNMUTE AUDIO</button>
     </div>
 
@@ -249,10 +248,11 @@
             } catch(e) {}
         };
 
+        // 視聴画面のスケールラッパーを外したため、放送画面のみをスケール対象に修正
         function resizePreview() {
-            const wrappers = [document.getElementById('preview-wrapper'), document.getElementById('viewer-mode')];
+            const wrappers = [document.getElementById('preview-wrapper')];
             wrappers.forEach(wrapper => {
-                if(wrapper.style.display === 'none') return;
+                if(!wrapper || wrapper.style.display === 'none') return;
                 const scaleArea = wrapper.querySelector('.scale-area');
                 if(scaleArea) {
                     const scale = Math.min(wrapper.clientWidth / 1920, wrapper.clientHeight / 1080);
@@ -284,7 +284,7 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. メディア制御 (YouTube機能削除・完全ローカル化)
+        // 2. メディア制御
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
         let isMainVideo = false, isWipeVideo = false;
@@ -664,7 +664,6 @@
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('viewer-mode').style.display = 'flex';
-                resizePreview();
                 
                 peer = new Peer();
                 peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
@@ -675,6 +674,7 @@
                     call.on('stream', (remoteStream) => {
                         document.getElementById('viewer-ui').style.display = 'none';
                         const video = document.getElementById('viewer-video');
+                        video.style.display = 'block';
                         video.srcObject = remoteStream;
                         document.getElementById('unmute-btn').style.display = 'block';
                     });
