@@ -60,6 +60,7 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         
+        /* ボリュームスライダー */
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--wrc-orange); cursor: pointer; margin-top: -6px; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: gray; border-radius: 2px; }
@@ -76,7 +77,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 38.0.0 (BUTTON REBUILD & STABLE CAM)</div>
+        <div id="version-text">VER 39.0.0 (ULTIMATE ENGINE & RADIO FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -102,7 +103,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (Stable Mode)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready (HD+)</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -258,12 +259,14 @@
 
     <script>
         // ==========================================
-        // 0. 通信設定 & 状態管理の再構築 (1から作り直し)
+        // 0. 通信設定 & グローバル変数
         // ==========================================
         const peerConfig = { config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] } };
         let extCamCall = null; 
+        
+        let isBroadcasting = false; 
 
-        // ★新・ステートマシン（バグを生まない絶対安全な仕組み）
+        // 新・完全安全なステートマシン
         const Overlays = {
             wipe: { active: false, val: 0 },
             text1: { active: false, val: 0, l1: '', l2: '' },
@@ -273,36 +276,49 @@
             radio: { active: false, val: 0 }
         };
 
-        // UIから呼ばれる単一の操作関数
+        // マイクの連続クリックによるシステムクラッシュを防ぐロック
+        let isTogglingRadio = false;
+
         async function toggleOverlay(name, isActive) {
-            Overlays[name].active = isActive;
-            
-            // Textの文字取得
-            if(isActive && (name === 'text1' || name === 'text2')) {
-                const num = name === 'text1' ? 1 : 2;
-                Overlays[name].l1 = document.getElementById(`t${num}-l1`).value;
-                Overlays[name].l2 = document.getElementById(`t${num}-l2`).value;
-            }
-            // Scheduleの文字取得
-            if(isActive && name === 'schedule') {
-                Overlays.schedule.time = document.getElementById('schedule-time').value || "00:00";
-                Overlays.schedule.text = document.getElementById('schedule-text').value || "NEXT STAGE";
-            }
-            // マイクの起動処理
             if(name === 'radio') {
-                if(isActive && !micStream) {
-                    try {
+                if(isTogglingRadio) return; // 処理中なら無視（連打ブロック）
+                isTogglingRadio = true;
+                try {
+                    if(isActive && !micStream) {
                         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         if(!audioCtx) initAudioMixer(); 
-                        if (audioCtx.state === 'suspended') await audioCtx.resume();
+                        if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+                        
                         micNode = audioCtx.createMediaStreamSource(micStream);
-                        analyser = audioCtx.createAnalyser(); analyser.fftSize = 64; dataArray = new Uint8Array(analyser.frequencyBinCount);
-                        micNode.connect(analyser); if (micGain) analyser.connect(micGain); 
-                    } catch(e) { alert("マイクのアクセスが拒否されました"); Overlays.radio.active = false; }
-                } else if(!isActive && micStream) {
-                    // マイクを停止
-                    micStream.getTracks().forEach(t => t.stop()); micStream = null;
-                    if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
+                        analyser = audioCtx.createAnalyser(); 
+                        analyser.fftSize = 64; 
+                        dataArray = new Uint8Array(analyser.frequencyBinCount);
+                        
+                        micNode.connect(analyser); 
+                        if (micGain) analyser.connect(micGain); 
+                        Overlays.radio.active = true;
+                    } else if(!isActive && micStream) {
+                        Overlays.radio.active = false;
+                        micStream.getTracks().forEach(t => t.stop()); 
+                        micStream = null;
+                        if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
+                    }
+                } catch(e) {
+                    alert("マイクのアクセスが拒否されました");
+                    Overlays.radio.active = false;
+                }
+                isTogglingRadio = false;
+            } else {
+                // ラジオ以外の通常のオーバーレイ処理
+                Overlays[name].active = isActive;
+                if(isActive && (name === 'text1' || name === 'text2')) {
+                    const num = name === 'text1' ? 1 : 2;
+                    Overlays[name].l1 = document.getElementById(`t${num}-l1`).value;
+                    Overlays[name].l2 = document.getElementById(`t${num}-l2`).value;
+                }
+                if(isActive && name === 'schedule') {
+                    Overlays.schedule.time = document.getElementById('schedule-time').value || "00:00";
+                    Overlays.schedule.text = document.getElementById('schedule-text').value || "NEXT STAGE";
                 }
             }
         }
@@ -338,7 +354,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB27";
+        const dbName = "WrcBroadcastDB28";
         let db; let viewerConns = [];
 
         function initDB() {
@@ -373,7 +389,22 @@
                 
                 targetFPS = parseInt(loadSetting('wrc_fps', '24'));
                 setFPS(targetFPS);
+
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
+
+                // 安全な低頻度（2秒ごと）の監視タイマー。絶対に暴走しない。
+                setInterval(() => {
+                    const bgm = document.getElementById('bgm-player');
+                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
+                    
+                    // カメラ映像のフリーズ復帰用。1秒間に60回呼ぶとクラッシュするため2秒に1回に制限
+                    if(isBroadcasting) {
+                        const extCamVideo = document.getElementById('ext-cam-video');
+                        if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
+                        const monVideo = document.getElementById('extcam-monitor-video');
+                        if (monVideo && monVideo.srcObject && monVideo.paused) { monVideo.play().catch(()=>{}); }
+                    }
+                }, 2000);
             } catch(e) {}
         };
 
@@ -446,6 +477,7 @@
             const input = document.getElementById(`${type}-file`);
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
+            
             if(type === 'main') { mainFiles = [...mainFiles, ...newFiles].slice(0, 9); saveFilesToDB('main', mainFiles); populateButtons('main', mainFiles); }
             if(type === 'wipe') { wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); saveFilesToDB('wipe', wipeFiles); populateButtons('wipe', wipeFiles); }
             input.value = '';
@@ -491,8 +523,10 @@
                     type = 'img';
                 }
             }
+
             if (nextBuf === 'a') { trans.main.mediaA = mediaEl; trans.main.typeA = type; }
             else                 { trans.main.mediaB = mediaEl; trans.main.typeB = type; }
+
             trans.main.progress = (transMode === 'cut') ? 1.0 : 0.0;
         }
 
@@ -522,8 +556,10 @@
                     type = 'img';
                 }
             }
+
             if (nextBuf === 'a') { trans.wipe.mediaA = mediaEl; trans.wipe.typeA = type; }
             else                 { trans.wipe.mediaB = mediaEl; trans.wipe.typeB = type; }
+
             trans.wipe.progress = (transMode === 'cut') ? 1.0 : 0.0;
             toggleOverlay('wipe', true);
         }
@@ -658,10 +694,11 @@
         let lastRenderTime = performance.now();
         let lastStreamDrawTime = 0;
 
-        // ★新システム：単一の安定したrequestAnimationFrameループ
-        function renderLoop(time) {
+        // ★完全にストッパー無しの独立した無敵ループ★
+        function renderLoop() {
             requestAnimationFrame(renderLoop);
             
+            let time = performance.now();
             let dt = (time - lastRenderTime) / 1000;
             if (isNaN(dt) || dt < 0) dt = 0;
             if (dt > 0.1) dt = 0.1; 
@@ -696,36 +733,6 @@
                 compCtx.globalAlpha = 1.0;
             } else {
                 if(mNxt) { safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080); }
-            }
-
-            // RADIO
-            if (Overlays.radio.val > 0) {
-                let p = Overlays.radio.val;
-                const rw = 400, rh = 100, rx = 50, ry = 540;
-                const blockX = rx - rw + (rw * 2) * p;
-                
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                if(p > 0.5) {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
-
-                    if (analyser && dataArray && p === 1.0) { // 完全に開ききってから波形を動かす
-                        analyser.getByteFrequencyData(dataArray);
-                        const barWidth = 8; const gap = 4; const startX = rx + 200;
-                        for (let i = 0; i < 16; i++) {
-                            const val = dataArray[i] || 0; 
-                            const targetHeight = Math.max((val / 255) * 60, 4); 
-                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
-                            if(isNaN(smoothedBars[i])) smoothedBars[i] = 4; 
-                            compCtx.fillStyle = '#ff5722';
-                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
-                        }
-                    }
-                }
-                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
-                compCtx.restore();
             }
 
             // WIPE
@@ -782,6 +789,36 @@
 
             drawTextOverlay(Overlays.text1, 'left', 820);
             drawTextOverlay(Overlays.text2, 'right', 820);
+
+            // RADIO (MIC)
+            if (Overlays.radio.val > 0) {
+                let p = Overlays.radio.val;
+                const rw = 400, rh = 100, rx = 50, ry = 540;
+                const blockX = rx - rw + (rw * 2) * p;
+                
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(p > 0.5) {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
+                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
+
+                    if (analyser && dataArray && p === 1.0) { // 完全に開ききってから波形を動かす
+                        analyser.getByteFrequencyData(dataArray);
+                        const barWidth = 8; const gap = 4; const startX = rx + 200;
+                        for (let i = 0; i < 16; i++) {
+                            const val = dataArray[i] || 0; 
+                            const targetHeight = Math.max((val / 255) * 60, 4); 
+                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
+                            if(isNaN(smoothedBars[i])) smoothedBars[i] = 4; // NaN汚染を絶対防御
+                            compCtx.fillStyle = '#ff5722';
+                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
+                        }
+                    }
+                }
+                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
+                compCtx.restore();
+            }
 
             // WEATHER (WIPEと同じ位置)
             if (Overlays.weather.val > 0) {
@@ -878,7 +915,7 @@
             }
         }
         
-        // 描画エンジン起動
+        // 描画エンジン起動 (ここで1回だけ呼ぶ。絶対に複数呼ばない)
         requestAnimationFrame(renderLoop);
 
         // ==========================================
@@ -950,7 +987,6 @@
                             }
                         };
                         call.on('stream', handleStream);
-                        // WebRTCの生トラックを監視
                         if (call.peerConnection) { call.peerConnection.addEventListener('track', (event) => { if (event.streams && event.streams[0]) { handleStream(event.streams[0]); } }); }
                         call.on('close', () => { disconnectExtCamHost(); });
                     }
@@ -960,6 +996,8 @@
                     conn.on('data', (data) => { if (data && data.type === 'HELLO_HOST') { document.getElementById('p2p-status').innerText = "Viewer Connected!"; document.getElementById('p2p-status').style.color = "yellow"; peer.call(data.viewerId, mixedStream); } });
                     conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
+                
+                isBroadcasting = true; // 配信開始フラグ
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
         }
 
@@ -996,12 +1034,18 @@
             try {
                 document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // ★セキュリティブロック回避。余計な要求を捨てて最も安定して開く設定にする。
+                // ★安定最優先。HD要求をやめ、スマホの「一番素直に動くデフォルト設定」で起動する。
                 const constraints = { video: { facingMode: 'environment' }, audio: true };
-                extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                try {
+                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch(e) {
+                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                }
+
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready. Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable HD). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
