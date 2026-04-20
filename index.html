@@ -6,7 +6,10 @@
     <title>WRC P2P Broadcast System PRO</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
+        /* 2種類のフォントを読み込み */
         @font-face { font-family: 'WRCCleanBold'; src: url('./WRCCleanBold.ttf') format('truetype'); }
+        @font-face { font-family: 'WRCCleanRoman'; src: url('./WRCCleanRoman.ttf') format('truetype'); }
+        
         :root { --wrc-navy: #0a192f; --wrc-navy-dark: #020c1b; --wrc-orange: #ff5722; --text-main: #e6f1ff; }
         * { box-sizing: border-box; font-family: 'WRCCleanBold', sans-serif; text-transform: uppercase; }
         body { margin: 0; padding: 0; background-color: var(--wrc-navy-dark); color: var(--text-main); overflow: hidden; }
@@ -17,22 +20,22 @@
             height: 100vh; background: radial-gradient(circle, var(--wrc-navy), var(--wrc-navy-dark)); 
             position: absolute; top: 0; left: 0; width: 100%; z-index: 9999;
         }
-        #version-text { position: absolute; bottom: 15px; right: 25px; color: rgba(255, 255, 255, 0.3); font-size: 14px; letter-spacing: 2px; }
+        #version-text { position: absolute; bottom: 15px; right: 25px; color: rgba(255, 255, 255, 0.3); font-size: 14px; letter-spacing: 2px; font-family: 'WRCCleanRoman', sans-serif; }
         .btn { background-color: transparent; color: var(--wrc-orange); border: 2px solid var(--wrc-orange); padding: 15px 40px; font-size: 24px; margin: 10px; cursor: pointer; transition: all 0.3s ease; }
         .btn:hover { background-color: var(--wrc-orange); color: var(--wrc-navy-dark); }
 
-        /* ----- 共通 ----- */
+        /* ----- サブ画面共通 ----- */
         .sub-mode-screen { display: none; height: 100vh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; background-color: #000; position: absolute; top: 0; left: 0; z-index: 10; }
         .ui-panel { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
         .fullscreen-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
-        input[type="text"] { padding: 10px; font-size: 16px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 15px; width: 100%; text-align: center; letter-spacing: 2px; }
-        .status-text { color: yellow; font-size: 14px; margin-top: 10px; }
+        input[type="text"], input[type="time"] { padding: 8px; font-size: 14px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 8px; width: 100%; letter-spacing: 1px; font-family: 'WRCCleanRoman', sans-serif; }
+        
+        .roman-text { font-family: 'WRCCleanRoman', sans-serif; text-transform: none; }
 
-        /* ----- 放送モード: 新レイアウト ----- */
+        /* ----- 放送モード: レイアウト ----- */
         #broadcast-mode { display: none; height: 100vh; flex-direction: column; position: relative; z-index: 10; background: #000; }
         #broadcast-info { position: absolute; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.7); padding: 10px; font-size: 18px; color: yellow; border: 2px solid yellow; letter-spacing: 2px; }
 
-        /* 3画面プレビュー領域 */
         #preview-wrapper { flex: 1; display: flex; background: #000; overflow: hidden; padding: 10px; gap: 10px; position: relative; }
         #main-preview-area { flex: 7; position: relative; background: #0a0a0a; border: 2px solid var(--wrc-navy); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         #side-preview-area { flex: 3; display: flex; flex-direction: column; gap: 10px; }
@@ -43,13 +46,13 @@
 
         /* コントロールパネル */
         #controls { background-color: var(--wrc-navy); border-top: 2px solid var(--wrc-orange); padding: 15px; display: flex; gap: 15px; overflow-x: auto; flex-shrink: 0; position: relative; z-index: 10; }
-        .control-group { background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3); padding: 12px; min-width: 250px; display: flex; flex-direction: column; }
+        .control-group { background: var(--wrc-navy-dark); border: 1px solid rgba(255, 87, 34, 0.3); padding: 12px; min-width: 220px; display: flex; flex-direction: column; }
         .control-group h3 { color: var(--wrc-orange); margin-top: 0; font-size: 14px; border-bottom: 1px solid var(--wrc-orange); padding-bottom: 5px; margin-bottom: 10px; }
         
-        .btn-small { width: 48%; margin: 0; padding: 8px; font-size: 12px; cursor: pointer; border: 1px solid var(--wrc-orange); background: transparent; color: white; transition: 0.2s; }
+        .btn-small { flex: 1; margin: 0; padding: 8px; font-size: 12px; cursor: pointer; border: 1px solid var(--wrc-orange); background: transparent; color: white; transition: 0.2s; text-align: center; }
         .btn-small.active { background: var(--wrc-orange); color: var(--wrc-navy-dark); font-weight: bold; }
         .btn-small:hover { background: rgba(255, 87, 34, 0.3); }
-        .flex-row { display: flex; gap: 5px; margin-bottom: 5px; }
+        .flex-row { display: flex; gap: 5px; margin-bottom: 5px; width: 100%; }
 
         .media-btn-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; min-height: 32px; }
         .media-track-btn { flex-grow: 1; padding: 5px; font-size: 12px; border: 1px solid gray; color: gray; background: transparent; cursor: pointer; min-width: 30px; text-align: center; }
@@ -57,6 +60,12 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         
+        /* ボリュームスライダー */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--wrc-orange); cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: gray; border-radius: 2px; }
+        .vol-label { font-size: 10px; color: #aaa; width: 40px; display: inline-block; }
+
         .hidden-media-container { position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: 1; }
         .clear-btn { float: right; cursor: pointer; color: gray; font-size: 10px; border: 1px solid gray; padding: 2px 5px; border-radius: 3px; }
         .clear-btn:hover { background: rgba(255,255,255,0.1); color: white; }
@@ -69,13 +78,13 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 30.0.0 (NO AUTO-SWITCH & LOGO FIX)</div>
+        <div id="version-text">VER 31.0.0 (TRANSITIONS & DUAL FONTS PRO)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
         <div id="viewer-ui" class="ui-panel">
             <h2 style="color: var(--wrc-orange);">CONNECT TO HOST</h2>
-            <p style="font-size: 14px;">放送画面左上の4桁の数字を入力</p>
+            <p style="font-size: 14px;" class="roman-text">放送画面左上の4桁の数字を入力</p>
             <input type="text" id="host-id-input" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectToHost()">CONNECT</button>
@@ -91,7 +100,7 @@
     <div id="extcam-mode" class="sub-mode-screen">
         <div id="extcam-ui" class="ui-panel" style="border-color: #e91e63;">
             <h2 style="color: #e91e63;">EXTERNAL CAMERA</h2>
-            <p style="font-size: 14px;">配信端末のIDを入力して接続</p>
+            <p style="font-size: 14px;" class="roman-text">配信端末のIDを入力して接続</p>
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
@@ -108,12 +117,18 @@
         <div id="preview-wrapper">
             <div class="hidden-media-container">
                 <div id="media-pool" style="width: 1920px; height: 1080px; position: relative;">
-                    <video id="main-video" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
-                    <img id="main-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
-                    <video id="wipe-video" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
-                    <img id="wipe-img" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;">
+                    <video id="main-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="main-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <video id="wipe-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="wipe-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    
+                    <video id="main-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="main-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <video id="wipe-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="wipe-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    
                     <audio id="bgm-player" crossorigin="anonymous" preload="auto"></audio>
-                    <video id="ext-cam-video" autoplay playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0;"></video>
+                    <video id="ext-cam-video" autoplay playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
                 </div>
             </div>
 
@@ -136,12 +151,12 @@
         </div>
 
         <div id="controls">
-            <div class="control-group" style="border-color: #f44336; min-width: 180px;">
+            <div class="control-group" style="border-color: #f44336; min-width: 160px;">
                 <h3 style="color: #f44336; border-color: #f44336;">SYSTEM</h3>
-                <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 10px; font-weight: bold;">END BROADCAST</button>
+                <button class="btn-small" onclick="endBroadcast()" style="width: 100%; border-color: #f44336; color: #f44336; font-size: 14px; padding: 10px; margin-bottom: 5px; font-weight: bold;">END BROADCAST</button>
                 <div class="flex-row">
-                    <button id="fps-24-btn" class="btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50; width: 50%;">24 FPS</button>
-                    <button id="fps-60-btn" class="btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray; width: 50%;">60 FPS</button>
+                    <button id="fps-24-btn" class="btn-small" onclick="setFPS(24)" style="border-color: #4CAF50; color: #4CAF50;">24 FPS</button>
+                    <button id="fps-60-btn" class="btn-small" onclick="setFPS(60)" style="border-color: gray; color: gray;">60 FPS</button>
                 </div>
                 <input type="file" id="logo-file" accept="image/*" onchange="handleLogo()" style="width: 100%; font-size: 10px; margin: 5px 0;">
                 <div class="flex-row">
@@ -150,66 +165,87 @@
                 </div>
             </div>
 
-            <div class="control-group" id="cam-control-group" style="display:none; border-color: #e91e63; min-width: 150px;">
-                <h3 style="color: #e91e63; border-color: #e91e63;">EXTERNAL CAM</h3>
-                <button class="btn-small" onclick="disconnectExtCamHost()" style="border-color: #e91e63; color: #e91e63; width: 100%; font-weight: bold;">DISCONNECT CAM</button>
-            </div>
-
-            <div class="control-group" style="border-color: #00bcd4; min-width: 150px;">
-                <h3 style="color: #00bcd4; border-color: #00bcd4;">RADIO (MIC)</h3>
-                <div class="flex-row" style="margin-top: 10px;">
-                    <button class="btn-small" onclick="toggleRadio(true)" style="border-color: #00bcd4; color: #00bcd4; width: 50%;">MIC ON</button>
-                    <button class="btn-small" onclick="toggleRadio(false)" style="border-color: gray; color: gray; width: 50%;">MIC OFF</button>
+            <div class="control-group" style="border-color: #ff9800; min-width: 180px;">
+                <h3 style="color: #ff9800; border-color: #ff9800;">TRANSITION & AUDIO</h3>
+                <div class="flex-row" style="margin-bottom: 10px;">
+                    <button id="trans-cut-btn" class="btn-small active" onclick="setTransition('cut')" style="border-color: #ff9800; color: var(--wrc-navy-dark);">CUT (即切替)</button>
+                    <button id="trans-fade-btn" class="btn-small" onclick="setTransition('fade')" style="border-color: gray; color: gray;">FADE (ゆっくり)</button>
                 </div>
-                <p style="font-size:10px; color:#aaa; margin-top:5px;">※声と波形が放送に乗ります</p>
+                <div style="display:flex; flex-direction:column; gap:5px; margin-top: 5px;">
+                    <div style="display:flex; align-items:center;"><span class="vol-label">MAIN</span><input type="range" id="vol-main" min="0" max="1" step="0.01" value="1"></div>
+                    <div style="display:flex; align-items:center;"><span class="vol-label">WIPE</span><input type="range" id="vol-wipe" min="0" max="1" step="0.01" value="1"></div>
+                    <div style="display:flex; align-items:center;"><span class="vol-label">RADIO</span><input type="range" id="vol-mic" min="0" max="1" step="0.01" value="1"></div>
+                    <div style="display:flex; align-items:center;"><span class="vol-label">BGM</span><input type="range" id="vol-bgm" min="0" max="1" step="0.01" value="0.5"></div>
+                </div>
             </div>
 
-            <div class="control-group">
-                <h3>MAIN MEDIA (MAX 9) <span class="clear-btn" onclick="clearMedia('main')">🗑 CLEAR</span></h3>
+            <div class="control-group" style="border-color: #00bcd4; min-width: 140px;">
+                <h3 style="color: #00bcd4; border-color: #00bcd4;">RADIO (MIC)</h3>
+                <div class="flex-row" style="margin-bottom: 10px;">
+                    <button class="btn-small" onclick="toggleRadio(true)" style="border-color: #00bcd4; color: #00bcd4;">MIC ON</button>
+                    <button class="btn-small" onclick="toggleRadio(false)" style="border-color: gray; color: gray;">OFF</button>
+                </div>
+                <div id="cam-control-group" style="display:none; flex-direction: column; margin-top: 10px;">
+                    <h3 style="color: #e91e63; border-color: #e91e63; margin-top:0;">EXT CAM</h3>
+                    <button class="btn-small" onclick="disconnectExtCamHost()" style="border-color: #e91e63; color: #e91e63; width: 100%; font-weight: bold;">DISCONNECT</button>
+                </div>
+            </div>
+
+            <div class="control-group" style="min-width: 180px;">
+                <h3>MAIN MEDIA <span class="clear-btn" onclick="clearMedia('main')">🗑 CLEAR</span></h3>
                 <input type="file" id="main-file" accept="video/*,image/*" multiple onchange="handleFiles('main')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <div id="main-btn-list" class="media-btn-list"></div>
             </div>
             
-            <div class="control-group">
+            <div class="control-group" style="min-width: 180px;">
                 <h3>WIPE (LEFT BTM) <span class="clear-btn" onclick="clearMedia('wipe')">🗑 CLEAR</span></h3>
                 <input type="file" id="wipe-file" accept="video/*,image/*" multiple onchange="handleFiles('wipe')" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <div id="wipe-btn-list" class="media-btn-list"></div>
                 <div class="flex-row">
-                    <button class="btn-small" onclick="toggleWipe(true)">SHOW WIPE</button>
+                    <button class="btn-small" onclick="toggleWipe(true)">SHOW</button>
                     <button class="btn-small" onclick="toggleWipe(false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
             </div>
-            
-            <div class="control-group">
-                <h3>TEXT & WEATHER</h3>
-                <input type="text" id="overlay-text-input" placeholder="TEXT..." oninput="saveSetting('wrc_text', this.value)" style="width: 100%; font-size: 12px; margin-bottom: 5px;">
-                <div class="flex-row" style="margin-bottom: 10px;">
-                    <select id="text-preset-select" class="file-select" style="width: 70%; margin-bottom: 0;" onchange="loadTextPreset()">
-                        <option value="">Presets...</option>
-                    </select>
-                    <button class="btn-small" onclick="saveTextPreset()" style="width: 15%;">SAVE</button>
-                    <button class="btn-small" onclick="deleteTextPreset()" style="border-color: #f44336; color: #f44336; width: 15%;">DEL</button>
-                </div>
+
+            <div class="control-group" style="min-width: 200px;">
+                <h3>TEXT 1 (LEFT)</h3>
+                <input type="text" id="t1-l1" placeholder="BOLD LINE 1..." style="margin-bottom: 4px;">
+                <input type="text" id="t1-l2" class="roman-text" placeholder="ROMAN LINE 2..." style="margin-bottom: 8px;">
                 <div class="flex-row">
-                    <button class="btn-small" onclick="activateInfo('text')">TXT ON</button>
-                    <button class="btn-small" onclick="activateInfo('weather')">WTH ON</button>
+                    <button class="btn-small" onclick="activateText(1, true)">SHOW</button>
+                    <button class="btn-small" onclick="activateText(1, false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
-                <button class="btn-small" onclick="hideInfo()" style="border-color: gray; color: gray; width: 100%;">HIDE TEXT/WTH</button>
             </div>
 
-            <div class="control-group" style="border-color: #9c27b0;">
-                <h3 style="color: #9c27b0; border-color: #9c27b0;">COMING UP NEXT</h3>
+            <div class="control-group" style="min-width: 200px;">
+                <h3>TEXT 2 (RIGHT)</h3>
+                <input type="text" id="t2-l1" placeholder="BOLD LINE 1..." style="margin-bottom: 4px;">
+                <input type="text" id="t2-l2" class="roman-text" placeholder="ROMAN LINE 2..." style="margin-bottom: 8px;">
                 <div class="flex-row">
-                    <input type="time" id="schedule-time" oninput="saveSetting('wrc_time', this.value)" style="width: 40%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px; font-family: monospace;">
-                    <input type="text" id="schedule-text" placeholder="STAGE..." oninput="saveSetting('wrc_stext', this.value)" style="width: 60%; background: var(--wrc-navy); color: white; border: 1px solid #9c27b0; padding: 5px;">
+                    <button class="btn-small" onclick="activateText(2, true)">SHOW</button>
+                    <button class="btn-small" onclick="activateText(2, false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
+            </div>
+            
+            <div class="control-group" style="min-width: 180px;">
+                <h3 style="color: #4CAF50; border-color: #4CAF50;">WEATHER</h3>
+                <div class="flex-row" style="margin-bottom: 10px;">
+                    <button class="btn-small" onclick="activateWeather(true)" style="border-color: #4CAF50; color: #4CAF50;">SHOW</button>
+                    <button class="btn-small" onclick="activateWeather(false)" style="border-color: gray; color: gray;">HIDE</button>
+                </div>
+                
+                <h3 style="color: #9c27b0; border-color: #9c27b0; margin-top: 5px;">SCHEDULE</h3>
                 <div class="flex-row">
+                    <input type="time" id="schedule-time" style="width: 45%; margin-bottom:0; padding:4px;">
+                    <input type="text" id="schedule-text" placeholder="STAGE..." class="roman-text" style="width: 55%; margin-bottom:0; padding:4px;">
+                </div>
+                <div class="flex-row" style="margin-top: 5px;">
                     <button class="btn-small" onclick="toggleSchedule(true)" style="border-color: #9c27b0; color: #9c27b0;">SHOW</button>
                     <button class="btn-small" onclick="toggleSchedule(false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
             </div>
 
-            <div class="control-group" style="border-color: #2196F3;">
+            <div class="control-group" style="border-color: #2196F3; min-width: 180px;">
                 <h3 style="color: #2196F3; border-color: #2196F3;">BGM (MAX 18) <span class="clear-btn" onclick="clearMedia('bgm')">🗑 CLEAR</span></h3>
                 <input type="file" id="bgm-file" accept="audio/*, .mp3, .wav, .m4a" multiple onchange="handleAudioFiles()" style="width: 100%; font-size: 10px; margin-bottom: 5px;">
                 <div id="bgm-btn-list" class="media-btn-list"></div>
@@ -223,86 +259,75 @@
 
     <script>
         // ==========================================
-        // 0. 通信設定
+        // 0. 通信設定 & グローバル変数
         // ==========================================
-        const peerConfig = {
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            }
+        const peerConfig = { config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] } };
+        let extCamCall = null; 
+
+        let transMode = 'cut'; // cut or fade
+        
+        // ダブルバッファ管理
+        let trans = {
+            main: { progress: 1, buf: 'a', nextBuf: 'b', mediaA: null, mediaB: null, typeA: null, typeB: null },
+            wipe: { progress: 1, buf: 'a', nextBuf: 'b', mediaA: null, mediaB: null, typeA: null, typeB: null }
         };
 
-        let extCamCall = null; 
+        function setTransition(mode) {
+            transMode = mode;
+            if(mode === 'cut') {
+                document.getElementById('trans-cut-btn').classList.add('active');
+                document.getElementById('trans-cut-btn').style.color = "var(--wrc-navy-dark)";
+                document.getElementById('trans-fade-btn').classList.remove('active');
+                document.getElementById('trans-fade-btn').style.color = "gray";
+            } else {
+                document.getElementById('trans-fade-btn').classList.add('active');
+                document.getElementById('trans-fade-btn').style.color = "var(--wrc-navy-dark)";
+                document.getElementById('trans-cut-btn').classList.remove('active');
+                document.getElementById('trans-cut-btn').style.color = "gray";
+            }
+        }
 
         function toggleFullScreen() {
             const video = document.getElementById('viewer-video');
             if (video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); return; }
             if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                if (video.requestFullscreen) video.requestFullscreen();
-                else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+                if (video.requestFullscreen) video.requestFullscreen(); else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
             } else {
-                if (document.exitFullscreen) document.exitFullscreen();
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         }
 
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB19";
-        let db;
-        let viewerConns = [];
+        const dbName = "WrcBroadcastDB20";
+        let db; let viewerConns = [];
 
         function initDB() {
             return new Promise((resolve) => {
                 const req = indexedDB.open(dbName, 1);
-                req.onupgradeneeded = e => {
-                    db = e.target.result;
-                    if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
-                };
+                req.onupgradeneeded = e => { db = e.target.result; if(!db.objectStoreNames.contains('files')) db.createObjectStore('files'); };
                 req.onsuccess = e => { db = e.target.result; resolve(); };
                 req.onerror = e => { resolve(); }; 
             });
         }
-
-        function saveFilesToDB(key, files) {
-            if(!db) return;
-            try { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(files, key); } catch(e) {}
-        }
-
+        function saveFilesToDB(key, files) { if(!db) return; try { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(files, key); } catch(e) {} }
         function loadFilesFromDB(key) {
             return new Promise(resolve => {
                 if(!db) return resolve([]);
-                try {
-                    const tx = db.transaction('files', 'readonly');
-                    const req = tx.objectStore('files').get(key);
-                    req.onsuccess = () => resolve(req.result || []);
-                    req.onerror = () => resolve([]);
-                } catch(e) { resolve([]); }
+                try { const tx = db.transaction('files', 'readonly'); const req = tx.objectStore('files').get(key); req.onsuccess = () => resolve(req.result || []); req.onerror = () => resolve([]); } catch(e) { resolve([]); }
             });
         }
-
-        function saveSetting(key, value) { localStorage.setItem(key, value); }
-        function loadSetting(key, defaultVal) { return localStorage.getItem(key) || defaultVal; }
 
         window.onload = async () => {
             try {
                 await initDB();
-                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateButtons('main', mainFiles); switchMainMedia(0, document.querySelectorAll('#main-btn-list .media-track-btn')[extCamConnected ? 1 : 0]); }
+                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateButtons('main', mainFiles); switchMainMedia(0); }
                 const wFiles = await loadFilesFromDB('wipe'); if(wFiles.length > 0) { wipeFiles = wFiles; populateButtons('wipe', wipeFiles); }
                 const bFiles = await loadFilesFromDB('bgm');  if(bFiles.length > 0) { bgmFiles = bFiles; populateButtons('bgm', bgmFiles); }
                 const lFile = await loadFilesFromDB('logo');  if(lFile.length > 0) { logoFile = lFile[0]; logoImg.src = URL.createObjectURL(logoFile); logoState = true; }
 
-                document.getElementById('overlay-text-input').value = loadSetting('wrc_text', '');
-                document.getElementById('schedule-time').value = loadSetting('wrc_time', '12:00');
-                document.getElementById('schedule-text').value = loadSetting('wrc_stext', 'STAGE 1');
-                
-                initTextPresets();
-                targetFPS = parseInt(loadSetting('wrc_fps', '24'));
-                setFPS(targetFPS);
-
+                targetFPS = 24; setFPS(24);
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
 
                 setInterval(() => {
@@ -310,51 +335,12 @@
                     if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
                     if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
                 }, 1000);
-
             } catch(e) {}
         };
 
         // ==========================================
-        // 1. テキストプリセット & 天気取得
+        // 1. 天気取得
         // ==========================================
-        let textPresets = [];
-        function initTextPresets() {
-            try { textPresets = JSON.parse(loadSetting('wrc_text_presets', '[]')); } catch(e){ textPresets = []; }
-            updateTextPresetUI();
-        }
-        function updateTextPresetUI() {
-            const sel = document.getElementById('text-preset-select');
-            sel.innerHTML = '<option value="">Presets...</option>';
-            textPresets.forEach((p, i) => {
-                const shortText = p.length > 15 ? p.substring(0,15)+'...' : p;
-                sel.add(new Option(shortText, i));
-            });
-        }
-        function saveTextPreset() {
-            const val = document.getElementById('overlay-text-input').value.trim();
-            if(!val) return;
-            if(!textPresets.includes(val)) {
-                textPresets.push(val);
-                saveSetting('wrc_text_presets', JSON.stringify(textPresets));
-                updateTextPresetUI();
-                document.getElementById('text-preset-select').value = textPresets.length - 1;
-            }
-        }
-        function deleteTextPreset() {
-            const sel = document.getElementById('text-preset-select');
-            if(sel.value === "") return;
-            textPresets.splice(parseInt(sel.value), 1);
-            saveSetting('wrc_text_presets', JSON.stringify(textPresets));
-            updateTextPresetUI();
-            document.getElementById('overlay-text-input').value = "";
-        }
-        function loadTextPreset() {
-            const sel = document.getElementById('text-preset-select');
-            if(sel.value === "") return;
-            document.getElementById('overlay-text-input').value = textPresets[parseInt(sel.value)];
-            saveSetting('wrc_text', textPresets[parseInt(sel.value)]);
-        }
-
         let weatherData = { cond: '--', temp: '--', wind: '-- / --' };
         function fetchWeatherInBackground() {
             if (!navigator.geolocation) return;
@@ -374,10 +360,9 @@
         setInterval(fetchWeatherInBackground, 60000);
 
         // ==========================================
-        // 2. ワンタップメディア ＆ 追加アップロードエンジン
+        // 2. メディア管理 & ダブルバッファ切替
         // ==========================================
         let mainFiles = [], wipeFiles = [], bgmFiles = [];
-        let isMainVideo = null, isWipeVideo = null;
         let activeMainMedia = null, activeWipeMedia = null, activeBgmMedia = null;
         let extCamConnected = false; 
 
@@ -391,14 +376,13 @@
             if ((type === 'main' || type === 'wipe') && extCamConnected) {
                 const btn = document.createElement('button');
                 btn.className = `media-track-btn`;
-                if ((type === 'main' && isMainVideo === 'ext-cam') || (type === 'wipe' && isWipeVideo === 'ext-cam')) {
-                    btn.classList.add('active');
-                }
+                let isActive = (type==='main' && activeMainMedia==='ext-cam') || (type==='wipe' && activeWipeMedia==='ext-cam');
+                if (isActive) btn.classList.add('active');
                 btn.innerText = '📱 CAM';
                 btn.style.color = '#e91e63'; btn.style.borderColor = '#e91e63';
                 btn.onclick = () => {
-                    if(type === 'main') switchMainMedia('ext-cam', btn);
-                    if(type === 'wipe') switchWipeMedia('ext-cam', btn);
+                    if(type === 'main') switchMainMedia('ext-cam');
+                    if(type === 'wipe') switchWipeMedia('ext-cam');
                 };
                 container.appendChild(btn);
             }
@@ -406,171 +390,141 @@
             files.forEach((f, i) => {
                 const btn = document.createElement('button');
                 btn.className = `media-track-btn`;
-                if ((type === 'main' && activeMainMedia === i) || (type === 'wipe' && activeWipeMedia === i) || (type === 'bgm' && activeBgmMedia === i)) {
-                    btn.classList.add('active');
-                }
+                let isActive = (type==='main' && activeMainMedia===i) || (type==='wipe' && activeWipeMedia===i) || (type==='bgm' && activeBgmMedia===i);
+                if (isActive) btn.classList.add('active');
                 btn.innerText = (i + 1).toString();
                 btn.title = f.name;
                 btn.onclick = () => {
-                    if(type === 'main') switchMainMedia(i, btn);
-                    if(type === 'wipe') switchWipeMedia(i, btn);
+                    if(type === 'main') switchMainMedia(i);
+                    if(type === 'wipe') switchWipeMedia(i);
                     if(type === 'bgm') playBgm(i, btn);
                 };
                 container.appendChild(btn);
             });
         }
 
-        // --- 追加アップロード (勝手に切り替わらないように修正) ---
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
             
-            if(type === 'main') { 
-                mainFiles = [...mainFiles, ...newFiles].slice(0, 9); 
-                saveFilesToDB('main', mainFiles); 
-                populateButtons('main', mainFiles); 
-            }
-            if(type === 'wipe') { 
-                wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); 
-                saveFilesToDB('wipe', wipeFiles); 
-                populateButtons('wipe', wipeFiles); 
-            }
-            input.value = ''; // 次のアップロードのためにリセット
+            if(type === 'main') { mainFiles = [...mainFiles, ...newFiles].slice(0, 9); saveFilesToDB('main', mainFiles); populateButtons('main', mainFiles); }
+            if(type === 'wipe') { wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); saveFilesToDB('wipe', wipeFiles); populateButtons('wipe', wipeFiles); }
+            input.value = '';
         }
 
         function handleAudioFiles() {
             const input = document.getElementById('bgm-file');
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
-            
-            bgmFiles = [...bgmFiles, ...newFiles].slice(0, 18); 
-            saveFilesToDB('bgm', bgmFiles); 
-            populateButtons('bgm', bgmFiles);
+            bgmFiles = [...bgmFiles, ...newFiles].slice(0, 18); saveFilesToDB('bgm', bgmFiles); populateButtons('bgm', bgmFiles);
             input.value = '';
         }
 
-        let logoFile = null, logoImg = new Image(), logoState = false, logoLoaded = false;
-        logoImg.onload = () => { logoLoaded = true; }; // ロゴの読み込み完了を確実に検知
-
-        function handleLogo() {
-            const input = document.getElementById('logo-file');
-            if(input.files.length > 0) {
-                logoLoaded = false;
-                logoFile = input.files[0]; 
-                logoImg.src = URL.createObjectURL(logoFile);
-                saveFilesToDB('logo', [logoFile]); 
-                logoState = true;
-            }
-            input.value = '';
-        }
-        function toggleLogo(show) { logoState = show; }
-
-        // --- クリア機能 ---
         function clearMedia(type) {
-            if(type === 'main') {
-                mainFiles = []; saveFilesToDB('main', []); activeMainMedia = null; isMainVideo = false;
-                document.getElementById('main-video').src = ""; document.getElementById('main-img').src = "";
-                populateButtons('main', []);
-            }
-            if(type === 'wipe') {
-                wipeFiles = []; saveFilesToDB('wipe', []); activeWipeMedia = null; isWipeVideo = false;
-                document.getElementById('wipe-video').src = ""; document.getElementById('wipe-img').src = "";
-                populateButtons('wipe', []); toggleWipe(false);
-            }
-            if(type === 'bgm') {
-                bgmFiles = []; saveFilesToDB('bgm', []); stopBgm();
-                populateButtons('bgm', []);
-            }
+            if(type === 'main') { mainFiles = []; saveFilesToDB('main', []); activeMainMedia = null; populateButtons('main', []); }
+            if(type === 'wipe') { wipeFiles = []; saveFilesToDB('wipe', []); activeWipeMedia = null; populateButtons('wipe', []); toggleWipe(false); }
+            if(type === 'bgm') { bgmFiles = []; saveFilesToDB('bgm', []); stopBgm(); populateButtons('bgm', []); }
         }
 
-        function updateActiveButton(containerId, activeBtn) {
-            document.querySelectorAll(`#${containerId} .media-track-btn`).forEach(b => b.classList.remove('active'));
-            if(activeBtn) activeBtn.classList.add('active');
-        }
-
-        function switchMainMedia(idxOrType, btnElement = null) {
+        function switchMainMedia(idxOrType) {
             resumeAudio();
-            updateActiveButton('main-btn-list', btnElement);
-
-            if(idxOrType === "ext-cam") { 
-                isMainVideo = 'ext-cam'; activeMainMedia = 'ext-cam'; return; 
-            }
-            
-            const file = mainFiles[idxOrType];
-            if(!file) return;
             activeMainMedia = idxOrType;
-            const url = URL.createObjectURL(file);
-            if (file.type.startsWith('video/')) {
-                isMainVideo = true; const v = document.getElementById('main-video'); 
-                v.src = url; v.muted = false; 
-                v.play().catch(()=>{});
-            } else { isMainVideo = false; document.getElementById('main-img').src = url; }
-        }
+            populateButtons('main', mainFiles); // ボタン更新
 
-        function switchWipeMedia(idxOrType, btnElement = null) {
-            resumeAudio();
-            updateActiveButton('wipe-btn-list', btnElement);
+            let nextBuf = trans.main.buf === 'a' ? 'b' : 'a';
+            trans.main.nextBuf = nextBuf;
+            let mediaEl = null, type = null;
 
             if(idxOrType === "ext-cam") { 
-                isWipeVideo = 'ext-cam'; activeWipeMedia = 'ext-cam'; toggleWipe(true); return; 
+                mediaEl = document.getElementById('ext-cam-video');
+                type = 'ext';
+            } else {
+                const file = mainFiles[idxOrType];
+                if(!file) return;
+                const url = URL.createObjectURL(file);
+                if (file.type.startsWith('video/')) {
+                    mediaEl = document.getElementById(`main-video-${nextBuf}`);
+                    mediaEl.src = url; mediaEl.muted = false; mediaEl.play().catch(()=>{});
+                    type = 'video';
+                } else {
+                    mediaEl = document.getElementById(`main-img-${nextBuf}`);
+                    mediaEl.src = url;
+                    type = 'img';
+                }
             }
 
-            const file = wipeFiles[idxOrType];
-            if(!file) return;
+            if (nextBuf === 'a') { trans.main.mediaA = mediaEl; trans.main.typeA = type; }
+            else                 { trans.main.mediaB = mediaEl; trans.main.typeB = type; }
+
+            trans.main.progress = (transMode === 'cut') ? 1.0 : 0.0;
+        }
+
+        function switchWipeMedia(idxOrType) {
+            resumeAudio();
             activeWipeMedia = idxOrType;
-            const url = URL.createObjectURL(file);
-            if (file.type.startsWith('video/')) {
-                isWipeVideo = true; const v = document.getElementById('wipe-video'); 
-                v.src = url; v.muted = false;
-                v.play().catch(()=>{});
-            } else { isWipeVideo = false; document.getElementById('wipe-img').src = url; }
+            populateButtons('wipe', wipeFiles);
+
+            let nextBuf = trans.wipe.buf === 'a' ? 'b' : 'a';
+            trans.wipe.nextBuf = nextBuf;
+            let mediaEl = null, type = null;
+
+            if(idxOrType === "ext-cam") { 
+                mediaEl = document.getElementById('ext-cam-video');
+                type = 'ext';
+            } else {
+                const file = wipeFiles[idxOrType];
+                if(!file) return;
+                const url = URL.createObjectURL(file);
+                if (file.type.startsWith('video/')) {
+                    mediaEl = document.getElementById(`wipe-video-${nextBuf}`);
+                    mediaEl.src = url; mediaEl.muted = false; mediaEl.play().catch(()=>{});
+                    type = 'video';
+                } else {
+                    mediaEl = document.getElementById(`wipe-img-${nextBuf}`);
+                    mediaEl.src = url;
+                    type = 'img';
+                }
+            }
+
+            if (nextBuf === 'a') { trans.wipe.mediaA = mediaEl; trans.wipe.typeA = type; }
+            else                 { trans.wipe.mediaB = mediaEl; trans.wipe.typeB = type; }
+
+            trans.wipe.progress = (transMode === 'cut') ? 1.0 : 0.0;
             toggleWipe(true);
         }
 
-        function playBgm(idx, btnElement = null) {
+        function playBgm(idx) {
             resumeAudio();
             if (bgmFiles.length === 0) return;
-            if(!btnElement) {
-                const btns = document.querySelectorAll(`#bgm-btn-list .media-track-btn`);
-                if(btns[idx]) btnElement = btns[idx];
-            }
-            activeBgmMedia = idx;
-            updateActiveButton('bgm-btn-list', btnElement);
-
+            activeBgmMedia = idx; populateButtons('bgm', bgmFiles);
             const player = document.getElementById('bgm-player');
             player.src = URL.createObjectURL(bgmFiles[idx]);
             player.play().catch(()=>{});
         }
-
-        function playBgmRandom() {
-            if (bgmFiles.length === 0) return;
-            const rIndex = Math.floor(Math.random() * bgmFiles.length);
-            playBgm(rIndex);
-        }
-
-        function stopBgm() { 
-            const p = document.getElementById('bgm-player'); p.pause(); 
-            activeBgmMedia = null; updateActiveButton('bgm-btn-list', null);
-        }
+        function playBgmRandom() { if (bgmFiles.length > 0) playBgm(Math.floor(Math.random() * bgmFiles.length)); }
+        function stopBgm() { document.getElementById('bgm-player').pause(); activeBgmMedia = null; populateButtons('bgm', bgmFiles); }
 
         let targetFPS = 24;
         function setFPS(fps) {
-            targetFPS = fps; saveSetting('wrc_fps', fps);
+            targetFPS = fps; 
             const fpsLabel = document.getElementById('stream-fps-label');
             if(fpsLabel) fpsLabel.innerText = fps;
-            if(fps === 24) {
-                document.getElementById('fps-24-btn').style.borderColor = '#4CAF50'; document.getElementById('fps-24-btn').style.color = '#4CAF50';
-                document.getElementById('fps-60-btn').style.borderColor = 'gray'; document.getElementById('fps-60-btn').style.color = 'gray';
-            } else {
-                document.getElementById('fps-60-btn').style.borderColor = '#4CAF50'; document.getElementById('fps-60-btn').style.color = '#4CAF50';
-                document.getElementById('fps-24-btn').style.borderColor = 'gray'; document.getElementById('fps-24-btn').style.color = 'gray';
-            }
+            document.getElementById('fps-24-btn').style.color = fps===24 ? '#4CAF50' : 'gray'; document.getElementById('fps-24-btn').style.borderColor = fps===24 ? '#4CAF50' : 'gray';
+            document.getElementById('fps-60-btn').style.color = fps===60 ? '#4CAF50' : 'gray'; document.getElementById('fps-60-btn').style.borderColor = fps===60 ? '#4CAF50' : 'gray';
         }
 
+        let logoFile = null, logoImg = new Image(), logoState = false, logoLoaded = false;
+        logoImg.onload = () => { logoLoaded = true; };
+        function handleLogo() {
+            const input = document.getElementById('logo-file');
+            if(input.files.length > 0) { logoLoaded = false; logoFile = input.files[0]; logoImg.src = URL.createObjectURL(logoFile); saveFilesToDB('logo', [logoFile]); logoState = true; }
+            input.value = '';
+        }
+        function toggleLogo(show) { logoState = show; }
+
         function endBroadcast() {
-            const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
-            if (!confirmEnd) return;
+            if (!confirm("配信を終了し、ホームに戻しますか？")) return;
             viewerConns.forEach(conn => { if(conn.open) conn.send({ type: 'END_BROADCAST' }); });
             setTimeout(() => { location.reload(); }, 500);
         }
@@ -580,76 +534,48 @@
             extCamConnected = false;
             document.getElementById('cam-control-group').style.display = 'none';
             document.getElementById('extcam-offline-text').style.display = 'block';
-
+            
             const extVideo = document.getElementById('ext-cam-video');
             const monitorVideo = document.getElementById('extcam-monitor-video');
             if(extVideo) extVideo.srcObject = null;
             if(monitorVideo) monitorVideo.srcObject = null;
             
-            if (isMainVideo === 'ext-cam') switchMainMedia(0, document.querySelectorAll('#main-btn-list .media-track-btn')[0]);
-            if (isWipeVideo === 'ext-cam') { isWipeVideo = null; activeWipeMedia = null; toggleWipe(false); }
-            
+            if (activeMainMedia === 'ext-cam') switchMainMedia(0);
+            if (activeWipeMedia === 'ext-cam') { activeWipeMedia = null; toggleWipe(false); }
             populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
         }
 
         // ==========================================
-        // 3. RADIO (MIC) 機能
+        // 3. OVERLAY STATES (TEXT, WTH, SCH, MIC)
         // ==========================================
-        let micStream = null;
-        let micNode = null;
-        let analyser = null;
-        let dataArray = null;
+        let text1State = { status: 'HIDDEN', progress: 0, l1: '', l2: '' };
+        let text2State = { status: 'HIDDEN', progress: 0, l1: '', l2: '' };
+        let weatherState = { status: 'HIDDEN', progress: 0 };
+        let scheduleState = { status: 'HIDDEN', progress: 0, time: '', text: '' };
+        let wipeState = { status: 'HIDDEN', progress: 0 };
         let radioState = { status: 'HIDDEN', progress: 0 };
+        
+        let micStream = null; let micNode = null; let analyser = null; let dataArray = null;
         let smoothedBars = new Array(16).fill(4);
 
-        async function toggleRadio(show) {
+        function activateText(num, show) {
+            let state = num === 1 ? text1State : text2State;
             if (show) {
-                if (radioState.status !== 'HIDDEN') return;
-                try {
-                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    if(!audioCtx) initAudioMixer(); 
-                    
-                    micNode = audioCtx.createMediaStreamSource(micStream);
-                    analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 64; 
-                    dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    
-                    micNode.connect(analyser);
-                    if (micGain) analyser.connect(micGain); 
-                    
-                    radioState.status = 'IN';
-                    radioState.progress = 0;
-                } catch(e) {
-                    alert("マイクのアクセスが拒否されました");
-                }
+                state.l1 = document.getElementById(`t${num}-l1`).value;
+                state.l2 = document.getElementById(`t${num}-l2`).value;
+                if(state.status === 'HIDDEN') { state.status = 'IN'; state.progress = 0; }
             } else {
-                if (radioState.status === 'HIDDEN' || radioState.status === 'OUT') return;
-                radioState.status = 'OUT';
-                radioState.progress = 1;
+                if(state.status !== 'HIDDEN') { state.status = 'OUT'; }
             }
         }
-
-        // ==========================================
-        // 4. キャンバス描画エンジン
-        // ==========================================
-        const compositeCanvas = document.getElementById('composite-canvas');
-        const compCtx = compositeCanvas.getContext('2d');
-        const streamCanvas = document.getElementById('stream-canvas');
-        const streamCtx = streamCanvas.getContext('2d');
-
-        let wipeState = { status: 'HIDDEN', progress: 0 };
-        let infoState = { active: null, next: null, status: 'HIDDEN', progress: 0 }; 
-        let scheduleState = { status: 'HIDDEN', progress: 0, time: '', text: '' };
-
+        function activateWeather(show) {
+            if (show && weatherState.status === 'HIDDEN') { weatherState.status = 'IN'; weatherState.progress = 0; }
+            else if (!show && weatherState.status !== 'HIDDEN') { weatherState.status = 'OUT'; }
+        }
         function toggleWipe(show) {
             if(show && wipeState.status === 'HIDDEN') { wipeState.status = 'IN'; wipeState.progress = 0; }
             else if(!show && wipeState.status === 'VISIBLE') { wipeState.status = 'OUT'; wipeState.progress = 1; }
         }
-        function activateInfo(type) {
-            if(infoState.status === 'HIDDEN') { infoState.active = type; infoState.status = 'IN'; infoState.progress = 0; } 
-            else if(infoState.status === 'VISIBLE' && infoState.active !== type) { infoState.next = type; infoState.status = 'OUT'; infoState.progress = 1.0; }
-        }
-        function hideInfo() { if(infoState.status === 'VISIBLE') { infoState.next = null; infoState.status = 'OUT'; infoState.progress = 1.0; } }
         function toggleSchedule(show) {
             if(show && scheduleState.status === 'HIDDEN') {
                 scheduleState.time = document.getElementById('schedule-time').value || "00:00";
@@ -657,6 +583,30 @@
                 scheduleState.status = 'IN'; scheduleState.progress = 0;
             } else if(!show && scheduleState.status === 'VISIBLE') { scheduleState.status = 'OUT'; scheduleState.progress = 1; }
         }
+        async function toggleRadio(show) {
+            if (show) {
+                if (radioState.status !== 'HIDDEN') return;
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    if(!audioCtx) initAudioMixer(); 
+                    micNode = audioCtx.createMediaStreamSource(micStream);
+                    analyser = audioCtx.createAnalyser(); analyser.fftSize = 64; dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    micNode.connect(analyser); if (micGain) analyser.connect(micGain); 
+                    radioState.status = 'IN'; radioState.progress = 0;
+                } catch(e) { alert("マイクのアクセスが拒否されました"); }
+            } else {
+                if (radioState.status === 'HIDDEN' || radioState.status === 'OUT') return;
+                radioState.status = 'OUT'; radioState.progress = 1;
+            }
+        }
+
+        // ==========================================
+        // 4. キャンバス描画 & 音量計算エンジン
+        // ==========================================
+        const compositeCanvas = document.getElementById('composite-canvas');
+        const compCtx = compositeCanvas.getContext('2d');
+        const streamCanvas = document.getElementById('stream-canvas');
+        const streamCtx = streamCanvas.getContext('2d');
 
         function drawImageCover(ctx, img, x, y, w, h) {
             const imgW = img.videoWidth || img.naturalWidth || img.width; 
@@ -669,108 +619,135 @@
             ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
         }
 
-        let lastUpdate = performance.now();
+        function updateAudioVolumes() {
+            if(!audioCtx) return;
+            let vMain = parseFloat(document.getElementById('vol-main').value) || 0;
+            let vWipe = parseFloat(document.getElementById('vol-wipe').value) || 0;
+            let vMic  = parseFloat(document.getElementById('vol-mic').value) || 0;
+            let vBgm  = parseFloat(document.getElementById('vol-bgm').value) || 0;
+
+            if(bgmGain) bgmGain.gain.value = vBgm;
+            if(micGain) micGain.gain.value = (radioState.status !== 'HIDDEN') ? vMic : 0;
+
+            // MAIN Volume
+            let mA = 0, mB = 0, mExt = 0;
+            let pm = trans.main.progress;
+            if (pm < 1.0) {
+                let v1 = (1-pm)*vMain, v2 = pm*vMain;
+                if (trans.main.buf === 'a') {
+                    if(trans.main.typeA==='video') mA=v1; if(trans.main.typeA==='ext') mExt=Math.max(mExt,v1);
+                    if(trans.main.typeB==='video') mB=v2; if(trans.main.typeB==='ext') mExt=Math.max(mExt,v2);
+                } else {
+                    if(trans.main.typeB==='video') mB=v1; if(trans.main.typeB==='ext') mExt=Math.max(mExt,v1);
+                    if(trans.main.typeA==='video') mA=v2; if(trans.main.typeA==='ext') mExt=Math.max(mExt,v2);
+                }
+            } else {
+                let buf = trans.main.nextBuf;
+                if (buf === 'a') { if(trans.main.typeA==='video') mA=vMain; if(trans.main.typeA==='ext') mExt=Math.max(mExt,vMain); }
+                else             { if(trans.main.typeB==='video') mB=vMain; if(trans.main.typeB==='ext') mExt=Math.max(mExt,vMain); }
+            }
+            if(mainGainA) mainGainA.gain.value = mA;
+            if(mainGainB) mainGainB.gain.value = mB;
+
+            // WIPE Volume
+            let wA = 0, wB = 0, wExt = 0;
+            if (wipeState.status !== 'HIDDEN') {
+                let wp = wipeState.progress;
+                let pw = trans.wipe.progress;
+                let wVol = vWipe * wp;
+                if (pw < 1.0) {
+                    let v1 = (1-pw)*wVol, v2 = pw*wVol;
+                    if (trans.wipe.buf === 'a') {
+                        if(trans.wipe.typeA==='video') wA=v1; if(trans.wipe.typeA==='ext') wExt=Math.max(wExt,v1);
+                        if(trans.wipe.typeB==='video') wB=v2; if(trans.wipe.typeB==='ext') wExt=Math.max(wExt,v2);
+                    } else {
+                        if(trans.wipe.typeB==='video') wB=v1; if(trans.wipe.typeB==='ext') wExt=Math.max(wExt,v1);
+                        if(trans.wipe.typeA==='video') wA=v2; if(trans.wipe.typeA==='ext') wExt=Math.max(wExt,v2);
+                    }
+                } else {
+                    let buf = trans.wipe.nextBuf;
+                    if (buf === 'a') { if(trans.wipe.typeA==='video') wA=wVol; if(trans.wipe.typeA==='ext') wExt=Math.max(wExt,wVol); }
+                    else             { if(trans.wipe.typeB==='video') wB=wVol; if(trans.wipe.typeB==='ext') wExt=Math.max(wExt,wVol); }
+                }
+            }
+            if(wipeGainA) wipeGainA.gain.value = wA;
+            if(wipeGainB) wipeGainB.gain.value = wB;
+            
+            if(extCamGain) extCamGain.gain.value = Math.max(mExt, wExt);
+        }
+
+        let lastRenderTime = performance.now();
         let lastStreamDrawTime = 0;
 
         function renderLoop(time) {
-            requestAnimationFrame(renderLoop);
-            let dt = (time - lastUpdate) / 1000;
+            let dt = (time - lastRenderTime) / 1000;
             if(dt > 0.1) dt = 0.1;
-            lastUpdate = time;
+            lastRenderTime = time;
 
-            // オーディオの可視状態連動
-            if (audioCtx) {
-                if (mainGain) mainGain.gain.value = (isMainVideo === true) ? 1 : 0;
-                if (wipeGain) wipeGain.gain.value = (isWipeVideo === true && wipeState.status !== 'HIDDEN') ? 1 : 0;
-                if (extCamGain) {
-                    let isExtVisible = (isMainVideo === 'ext-cam') || (isWipeVideo === 'ext-cam' && wipeState.status !== 'HIDDEN');
-                    extCamGain.gain.value = isExtVisible ? 1 : 0;
-                }
-                if (micGain) {
-                    micGain.gain.value = (radioState.status !== 'HIDDEN') ? 1 : 0;
-                }
-            }
+            // Progress Updates
+            const fadeSpeed = 1.0; // 1秒でフェード
+            if (trans.main.progress < 1.0) { trans.main.progress += dt / fadeSpeed; if(trans.main.progress>=1.0){trans.main.progress=1.0; trans.main.buf = trans.main.nextBuf;} }
+            if (trans.wipe.progress < 1.0) { trans.wipe.progress += dt / fadeSpeed; if(trans.wipe.progress>=1.0){trans.wipe.progress=1.0; trans.wipe.buf = trans.wipe.nextBuf;} }
+
+            updateAudioVolumes();
+
+            const extCamVideo = document.getElementById('ext-cam-video');
+            if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
 
             // ==================
             // 左側プレビューの描画 (60FPS / NO LOGO)
             // ==================
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
-            let mainMedia;
-            if (isMainVideo === 'ext-cam') mainMedia = document.getElementById('ext-cam-video');
-            else mainMedia = isMainVideo ? document.getElementById('main-video') : document.getElementById('main-img');
+            // MAIN 描画 (ダブルバッファ)
+            let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
+            let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
             
-            if (isMainVideo === 'ext-cam' && (!mainMedia || mainMedia.readyState < 2)) {
-                compCtx.fillStyle = '#111'; compCtx.fillRect(0, 0, 1920, 1080);
-                compCtx.fillStyle = '#ff5722'; compCtx.font = "40px WRCCleanBold"; compCtx.textAlign = "center";
-                compCtx.fillText("WAITING FOR CAMERA SIGNAL...", 1920/2, 1080/2);
+            if (trans.main.progress < 1.0) {
+                if(mCur) drawImageCover(compCtx, mCur, 0, 0, 1920, 1080);
+                compCtx.globalAlpha = trans.main.progress;
+                if(mNxt) drawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                compCtx.globalAlpha = 1.0;
             } else {
-                drawImageCover(compCtx, mainMedia, 0, 0, 1920, 1080);
+                if(mNxt) {
+                    if (trans.main.typeB === 'ext' && mNxt.readyState < 2) {
+                        compCtx.fillStyle = '#111'; compCtx.fillRect(0, 0, 1920, 1080);
+                        compCtx.fillStyle = '#ff5722'; compCtx.font = "40px WRCCleanBold"; compCtx.textAlign = "center";
+                        compCtx.fillText("WAITING FOR CAMERA SIGNAL...", 1920/2, 1080/2);
+                    } else {
+                        drawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                    }
+                }
             }
 
             const animSpeed = 2.5;
-            const fixedX = 50, fixedY = 800; 
 
-            // RADIO (MIC)
-            if (radioState.status !== 'HIDDEN') {
-                if(radioState.status === 'IN') { 
-                    radioState.progress += dt*animSpeed; 
-                    if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} 
-                }
-                else if(radioState.status === 'OUT') { 
-                    radioState.progress -= dt*animSpeed; 
-                    if(radioState.progress<=0){
-                        radioState.status='HIDDEN';
-                        if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-                        if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
-                    } 
-                }
-                
-                const rw = 400, rh = 100, rx = 50, ry = 650;
-                const blockX = rx - rw + (rw * 2) * radioState.progress;
-                
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                    
-                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
-
-                    if (analyser && dataArray) {
-                        analyser.getByteFrequencyData(dataArray);
-                        const barWidth = 8; const gap = 4; const startX = rx + 200;
-                        for (let i = 0; i < 16; i++) {
-                            const val = dataArray[i];
-                            const targetHeight = Math.max((val / 255) * 60, 4); 
-                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
-                            compCtx.fillStyle = '#ff5722';
-                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
-                        }
-                    }
-                }
-                if(radioState.status === 'IN' || radioState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
-                compCtx.restore();
-            }
-
-            // WIPE
+            // WIPE 描画
             if (wipeState.status !== 'HIDDEN') {
                 if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
                 else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
                 
-                const ww = 480, wh = 270;
+                const ww = 480, wh = 270, fixedX = 50, fixedY = 800;
                 const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
                 compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
                 
                 if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                    let wipeMedia;
-                    if (isWipeVideo === 'ext-cam') wipeMedia = document.getElementById('ext-cam-video');
-                    else wipeMedia = isWipeVideo ? document.getElementById('wipe-video') : document.getElementById('wipe-img');
+                    let wCur = trans.wipe.buf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
+                    let wNxt = trans.wipe.nextBuf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
                     
-                    if (isWipeVideo === 'ext-cam' && (!wipeMedia || wipeMedia.readyState < 2)) {
-                        compCtx.fillStyle = '#111'; compCtx.fillRect(fixedX, fixedY, ww, wh);
+                    if (trans.wipe.progress < 1.0) {
+                        if(wCur) drawImageCover(compCtx, wCur, fixedX, fixedY, ww, wh);
+                        compCtx.globalAlpha = trans.wipe.progress;
+                        if(wNxt) drawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
+                        compCtx.globalAlpha = 1.0;
                     } else {
-                        drawImageCover(compCtx, wipeMedia, fixedX, fixedY, ww, wh);
+                        if(wNxt) {
+                            if (trans.wipe.typeB === 'ext' && wNxt.readyState < 2) {
+                                compCtx.fillStyle = '#111'; compCtx.fillRect(fixedX, fixedY, ww, wh);
+                            } else {
+                                drawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
+                            }
+                        }
                     }
                     compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
                 }
@@ -778,64 +755,129 @@
                 compCtx.restore();
             }
 
-            // TEXT & WEATHER
-            if (infoState.status !== 'HIDDEN') {
-                if(infoState.status === 'IN') { infoState.progress += dt*animSpeed; if(infoState.progress>=1){infoState.progress=1; infoState.status='VISIBLE';} }
-                else if(infoState.status === 'OUT') { 
-                    infoState.progress -= dt*animSpeed; 
-                    if(infoState.progress<=0) {
-                        if(infoState.next){ infoState.active = infoState.next; infoState.next = null; infoState.status = 'IN'; infoState.progress = 0; }
-                        else { infoState.status = 'HIDDEN'; }
-                    }
-                }
-                
-                let iw = 480, ih = 100;
-                let textStr = "";
-                if(infoState.active === 'text') {
-                    textStr = document.getElementById('overlay-text-input').value || " ";
-                    compCtx.font = "48px WRCCleanBold"; iw = Math.min(compCtx.measureText(textStr).width + 60, 1000); ih = 100;
-                } else if(infoState.active === 'weather') { iw = 450; ih = 180; }
+            // TEXT描画用関数
+            function drawTextOverlay(state, align, ry) {
+                if (state.status === 'HIDDEN') return;
+                if(state.status === 'IN') { state.progress += dt*animSpeed; if(state.progress>=1){state.progress=1; state.status='VISIBLE';} }
+                else if(state.status === 'OUT') { state.progress -= dt*animSpeed; if(state.progress<=0){state.status='HIDDEN';} }
 
-                const blockX = fixedX - iw + (iw * 2) * infoState.progress;
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, iw, ih); compCtx.clip();
-                if(infoState.progress > 0.5 || infoState.status === 'VISIBLE') {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(fixedX, fixedY, iw, ih);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(fixedX, fixedY, 10, ih); 
-                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                    if(infoState.active === 'text') {
-                        compCtx.font = "48px WRCCleanBold"; compCtx.fillText(textStr, fixedX + 30, fixedY + 25);
-                    } else {
-                        compCtx.fillStyle = '#ff5722'; compCtx.font = "24px WRCCleanBold"; compCtx.fillText("WEATHER CONDITION", fixedX + 30, fixedY + 20);
-                        compCtx.fillStyle = 'rgba(255,255,255,0.2)'; compCtx.fillRect(fixedX + 30, fixedY + 55, iw - 50, 2);
-                        compCtx.fillStyle = '#fff'; compCtx.font = "32px WRCCleanBold";
-                        compCtx.fillText(`COND: ${weatherData.cond}`, fixedX + 30, fixedY + 70);
-                        compCtx.fillText(`TEMP: ${weatherData.temp}`, fixedX + 30, fixedY + 105);
-                        compCtx.fillText(`WIND: ${weatherData.wind}`, fixedX + 30, fixedY + 140);
+                compCtx.font = "48px WRCCleanBold"; let w1 = compCtx.measureText(state.l1).width;
+                compCtx.font = "32px WRCCleanRoman"; let w2 = compCtx.measureText(state.l2).width;
+                let rw = Math.max(w1, w2) + 60;
+                rw = Math.max(rw, 300); // 最小幅
+                let rh = state.l2 ? 120 : 80;
+                let rx = align === 'left' ? 50 : 1920 - 50 - rw;
+                
+                let blockX = align === 'left' ? rx - rw + (rw * 2) * state.progress : rx + rw - (rw * 2) * state.progress;
+
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(state.progress > 0.5 || state.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; 
+                    if (align === 'left') compCtx.fillRect(rx, ry, 10, rh);
+                    else compCtx.fillRect(rx + rw - 10, ry, 10, rh);
+                    
+                    compCtx.fillStyle = '#fff'; 
+                    compCtx.textBaseline = 'top';
+                    
+                    let tx = align === 'left' ? rx + 30 : rx + rw - 30;
+                    compCtx.textAlign = align === 'left' ? 'left' : 'right';
+                    
+                    compCtx.font = "48px WRCCleanBold";
+                    compCtx.fillText(state.l1, tx, ry + 15);
+                    if (state.l2) {
+                        compCtx.fillStyle = '#ccc';
+                        compCtx.font = "32px WRCCleanRoman";
+                        compCtx.fillText(state.l2, tx, ry + 70);
                     }
                 }
-                if(infoState.status === 'IN' || infoState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, iw, ih); }
+                if(state.status === 'IN' || state.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
                 compCtx.restore();
             }
 
+            drawTextOverlay(text1State, 'left', 660);
+            drawTextOverlay(text2State, 'right', 660);
+
+            // RADIO (MIC)
+            if (radioState.status !== 'HIDDEN') {
+                if(radioState.status === 'IN') { radioState.progress += dt*animSpeed; if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} }
+                else if(radioState.status === 'OUT') { radioState.progress -= dt*animSpeed; if(radioState.progress<=0){ radioState.status='HIDDEN'; if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; } } }
+                
+                const rw = 400, rh = 100, rx = 50, ry = 540;
+                const blockX = rx - rw + (rw * 2) * radioState.progress;
+                
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
+                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
+
+                    if (analyser && dataArray) {
+                        analyser.getByteFrequencyData(dataArray);
+                        const barWidth = 8; const gap = 4; const startX = rx + 200;
+                        for (let i = 0; i < 16; i++) {
+                            const val = dataArray[i]; const targetHeight = Math.max((val / 255) * 60, 4); 
+                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
+                            compCtx.fillStyle = '#ff5722'; compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
+                        }
+                    }
+                }
+                if(radioState.status === 'IN' || radioState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
+                compCtx.restore();
+            }
+
+            // WEATHER 新アニメーション (下からカスケード)
+            if (weatherState.status !== 'HIDDEN') {
+                if(weatherState.status === 'IN') { weatherState.progress += dt*2.0; if(weatherState.progress>=1){weatherState.progress=1; weatherState.status='VISIBLE';} }
+                else if(weatherState.status === 'OUT') { weatherState.progress -= dt*2.0; if(weatherState.progress<=0){weatherState.status='HIDDEN';} }
+                
+                let rw = 450, rh = 180, rx = 50, ry = 800;
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                
+                // IN時は下から上、OUT時は上から下にスライド
+                let p = weatherState.progress;
+                let bgY = ry + rh * (1 - p);
+                
+                if (p > 0) {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, bgY, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, bgY, 10, rh);
+                    
+                    compCtx.textAlign = 'left';
+                    // COND (0.2 ~ 0.5)
+                    let cP = Math.max(0, Math.min(1, (p - 0.2) / 0.3));
+                    let cY = bgY + 20 + 30 * (1 - cP);
+                    compCtx.globalAlpha = cP;
+                    compCtx.fillStyle = '#ff5722'; compCtx.font = "24px WRCCleanBold"; compCtx.fillText("WEATHER CONDITION", rx + 30, cY);
+                    compCtx.fillStyle = '#fff'; compCtx.font = "32px WRCCleanRoman"; compCtx.fillText(`COND: ${weatherData.cond}`, rx + 30, cY + 35);
+                    
+                    // TEMP (0.4 ~ 0.7)
+                    let tP = Math.max(0, Math.min(1, (p - 0.4) / 0.3));
+                    let tY = bgY + 105 + 30 * (1 - tP);
+                    compCtx.globalAlpha = tP;
+                    compCtx.fillText(`TEMP: ${weatherData.temp}`, rx + 30, tY);
+                    
+                    // WIND (0.6 ~ 0.9)
+                    let wP = Math.max(0, Math.min(1, (p - 0.6) / 0.3));
+                    let wY = bgY + 140 + 30 * (1 - wP);
+                    compCtx.globalAlpha = wP;
+                    compCtx.fillText(`WIND: ${weatherData.wind}`, rx + 30, wY);
+                }
+                compCtx.restore();
+            }
+
+            // SCHEDULE
             if (scheduleState.status !== 'HIDDEN') {
                 if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
                 else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
 
-                const sw = 1250, sh = 130;
-                const sx = (1920 - sw) / 2;
-                const sy = 1080 - sh; 
+                const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; 
                 const blockX = sx - sw + (sw * 2) * scheduleState.progress;
 
-                const now = new Date();
-                let targetH = 0, targetM = 0;
-                if (scheduleState.time) {
-                    const parts = scheduleState.time.split(':');
-                    targetH = parseInt(parts[0], 10);
-                    targetM = parseInt(parts[1], 10);
-                }
+                const now = new Date(); let targetH = 0, targetM = 0;
+                if (scheduleState.time) { const parts = scheduleState.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
                 let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
-                let diff = targetDate - now;
-                if (diff < 0) diff = 0; 
+                let diff = targetDate - now; if (diff < 0) diff = 0; 
                 const diffSec = Math.floor(diff / 1000);
                 const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
                 const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
@@ -847,30 +889,24 @@
                     compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
                     compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
 
-                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold"; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
                     compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
 
-                    compCtx.fillStyle = 'rgba(255,255,255,0.3)';
-                    compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
+                    compCtx.fillStyle = 'rgba(255,255,255,0.3)'; compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
 
-                    compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
+                    compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
                     compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
 
-                    compCtx.font = "40px WRCCleanBold";
-                    compCtx.fillText("LOCAL", sx + 510, sy + 70);
+                    compCtx.font = "40px WRCCleanRoman"; compCtx.fillText("LOCAL", sx + 510, sy + 70);
                     const localWidth = compCtx.measureText("LOCAL ").width;
-                    
-                    compCtx.fillStyle = '#fff';
-                    compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
+                    compCtx.fillStyle = '#fff'; compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
                 }
                 if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); }
                 compCtx.restore();
             }
 
             // ==================
-            // 右下へのファイナルストリーム描画 (ターゲットFPS / ロゴあり)
+            // 右下へのファイナルストリーム描画
             // ==================
             const elapsedStream = time - lastStreamDrawTime;
             if (elapsedStream >= (1000 / targetFPS)) {
@@ -878,56 +914,46 @@
                 streamCtx.clearRect(0,0,1920,1080);
                 streamCtx.drawImage(compositeCanvas, 0, 0);
                 
-                // ロゴの確実な描画
                 if(logoState && logoLoaded && logoImg.height > 0) {
                     const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
                     streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
                 }
             }
+
+            requestAnimationFrame(renderLoop);
         }
 
+        // バックグラウンド専用の強制レンダリング・ループ
+        setInterval(() => {
+            const time = performance.now();
+            if (time - lastRenderTime > 100) { renderLoop(time); }
+        }, 1000 / 60);
 
         // ==========================================
         // 5. P2P WebRTC & Audio Mixer
         // ==========================================
-        let peer = null;
-        let mixedStream = null;
-        let audioCtx = null;
-        let audioMixerDest = null;
+        let peer = null; let mixedStream = null; let audioCtx = null; let audioMixerDest = null;
+        let mainGainA, mainGainB, wipeGainA, wipeGainB, bgmGain, extCamGain, micGain;
         
-        let mainGain, wipeGain, bgmGain, extCamGain, micGain;
-        let audioNodes = {};
-
         function initAudioMixer() {
             try {
                 if(audioCtx) return audioMixerDest.stream.getAudioTracks()[0];
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-                audioMixerDest = audioCtx.createMediaStreamDestination();
+                audioCtx = new AudioContext(); audioMixerDest = audioCtx.createMediaStreamDestination();
 
-                mainGain = audioCtx.createGain();
-                wipeGain = audioCtx.createGain();
-                bgmGain = audioCtx.createGain();
-                extCamGain = audioCtx.createGain();
-                micGain = audioCtx.createGain();
+                mainGainA = audioCtx.createGain(); mainGainB = audioCtx.createGain();
+                wipeGainA = audioCtx.createGain(); wipeGainB = audioCtx.createGain();
+                bgmGain = audioCtx.createGain(); extCamGain = audioCtx.createGain(); micGain = audioCtx.createGain();
 
-                const mainVideo = document.getElementById('main-video');
-                const wipeVideo = document.getElementById('wipe-video');
-                const bgmPlayer = document.getElementById('bgm-player');
+                const ma = audioCtx.createMediaElementSource(document.getElementById('main-video-a'));
+                const mb = audioCtx.createMediaElementSource(document.getElementById('main-video-b'));
+                const wa = audioCtx.createMediaElementSource(document.getElementById('wipe-video-a'));
+                const wb = audioCtx.createMediaElementSource(document.getElementById('wipe-video-b'));
+                const bgm = audioCtx.createMediaElementSource(document.getElementById('bgm-player'));
                 
-                audioNodes.main = audioCtx.createMediaElementSource(mainVideo);
-                audioNodes.wipe = audioCtx.createMediaElementSource(wipeVideo);
-                audioNodes.bgm = audioCtx.createMediaElementSource(bgmPlayer);
+                ma.connect(mainGainA); mb.connect(mainGainB); wa.connect(wipeGainA); wb.connect(wipeGainB); bgm.connect(bgmGain);
 
-                audioNodes.main.connect(mainGain);
-                audioNodes.wipe.connect(wipeGain);
-                audioNodes.bgm.connect(bgmGain);
-
-                [mainGain, wipeGain, bgmGain, extCamGain].forEach(gain => {
-                    gain.connect(audioMixerDest);
-                    gain.connect(audioCtx.destination); 
-                });
-                
+                [mainGainA, mainGainB, wipeGainA, wipeGainB, bgmGain, extCamGain].forEach(gain => { gain.connect(audioMixerDest); gain.connect(audioCtx.destination); });
                 micGain.connect(audioMixerDest);
 
                 return audioMixerDest.stream.getAudioTracks()[0];
@@ -937,88 +963,50 @@
         async function initBroadcast() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
-                
                 streamCtx.fillStyle = '#000'; streamCtx.fillRect(0, 0, 1920, 1080);
                 compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
-
                 const captureFunc = streamCanvas.captureStream || streamCanvas.mozCaptureStream;
                 if (!captureFunc) return alert("お使いのブラウザは映像配信に非対応です。");
-
-                fetchWeatherInBackground();
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('broadcast-mode').style.display = 'flex';
+                fetchWeatherInBackground(); document.getElementById('mode-selection').style.display = 'none'; document.getElementById('broadcast-mode').style.display = 'flex';
                 
                 const audioTrack = initAudioMixer();
-
                 const canvasStream = captureFunc.call(streamCanvas, 60); 
                 const videoTrack = canvasStream.getVideoTracks()[0];
                 if ('contentHint' in videoTrack) { videoTrack.contentHint = 'detail'; }
                 
                 const tracks = [videoTrack, audioTrack].filter(t => t);
                 mixedStream = new MediaStream(tracks);
-
                 const displayId = Math.floor(1000 + Math.random() * 9000).toString();
                 const secureHostId = "wrc-broadcast-pro-" + displayId; 
 
                 peer = new Peer(secureHostId, peerConfig);
                 peer.on('open', () => { document.getElementById('my-peer-id').innerText = displayId; });
-
                 peer.on('call', (call) => {
                     if (call.metadata && call.metadata.type === 'ext-cam') {
-                        extCamCall = call;
-                        call.answer(); 
-                        
+                        extCamCall = call; call.answer(); 
                         const handleStream = (remoteStream) => {
                             const extVideo = document.getElementById('ext-cam-video');
                             const monitorVideo = document.getElementById('extcam-monitor-video');
-                            
                             extVideo.srcObject = remoteStream;
-                            if (monitorVideo) {
-                                monitorVideo.srcObject = remoteStream;
-                                document.getElementById('extcam-offline-text').style.display = 'none';
-                            }
-
+                            if (monitorVideo) { monitorVideo.srcObject = remoteStream; document.getElementById('extcam-offline-text').style.display = 'none'; }
                             if(!extCamConnected) {
                                 extCamConnected = true;
-                                if (audioCtx && audioMixerDest) {
-                                    try {
-                                        const streamSrc = audioCtx.createMediaStreamSource(remoteStream);
-                                        streamSrc.connect(extCamGain);
-                                    } catch(e) {}
-                                }
+                                if (audioCtx && audioMixerDest) { try { const streamSrc = audioCtx.createMediaStreamSource(remoteStream); streamSrc.connect(extCamGain); } catch(e) {} }
                                 document.getElementById('cam-control-group').style.display = 'flex';
-                                populateButtons('main', mainFiles);
-                                populateButtons('wipe', wipeFiles);
-                                resizePreview();
+                                populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles); resizePreview();
                                 alert("📱 EXTERNAL CAMERA CONNECTED!");
                             }
                         };
-
                         call.on('stream', handleStream);
-                        if (call.peerConnection) {
-                            call.peerConnection.addEventListener('track', (event) => {
-                                if (event.streams && event.streams[0]) {
-                                    handleStream(event.streams[0]);
-                                }
-                            });
-                        }
-                        
+                        if (call.peerConnection) { call.peerConnection.addEventListener('track', (event) => { if (event.streams && event.streams[0]) { handleStream(event.streams[0]); } }); }
                         call.on('close', () => { disconnectExtCamHost(); });
                     }
                 });
-
                 peer.on('connection', (conn) => {
                     viewerConns.push(conn);
-                    conn.on('data', (data) => {
-                        if (data && data.type === 'HELLO_HOST') {
-                            document.getElementById('p2p-status').innerText = "Viewer Connected!";
-                            document.getElementById('p2p-status').style.color = "yellow";
-                            peer.call(data.viewerId, mixedStream);
-                        }
-                    });
+                    conn.on('data', (data) => { if (data && data.type === 'HELLO_HOST') { document.getElementById('p2p-status').innerText = "Viewer Connected!"; document.getElementById('p2p-status').style.color = "yellow"; peer.call(data.viewerId, mixedStream); } });
                     conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
-
                 requestAnimationFrame(renderLoop);
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
         }
@@ -1026,20 +1014,14 @@
         function initViewer() {
             try {
                 if (typeof Peer === 'undefined') return alert("通信エラー。リロードしてください。");
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('viewer-mode').style.display = 'flex';
-                
+                document.getElementById('mode-selection').style.display = 'none'; document.getElementById('viewer-mode').style.display = 'flex';
                 peer = new Peer(null, peerConfig);
                 peer.on('open', () => { document.getElementById('viewer-status-text').innerText = "System Ready."; });
-                
                 peer.on('call', (call) => {
                     document.getElementById('viewer-status-text').innerText = "Receiving P2P Stream...";
-                    call.answer();
-                    call.on('stream', (remoteStream) => {
+                    call.answer(); call.on('stream', (remoteStream) => {
                         document.getElementById('viewer-ui').style.display = 'none';
-                        const video = document.getElementById('viewer-video');
-                        video.style.display = 'block';
-                        video.srcObject = remoteStream;
+                        const video = document.getElementById('viewer-video'); video.style.display = 'block'; video.srcObject = remoteStream;
                         document.getElementById('viewer-top-controls').style.display = 'flex';
                     });
                 });
@@ -1049,55 +1031,33 @@
         function connectToHost() {
             const inputId = document.getElementById('host-id-input').value.trim();
             if (!inputId || inputId.length !== 4) return alert("4桁のIDを入力してください");
-            
             const targetHostId = "wrc-broadcast-pro-" + inputId;
             document.getElementById('viewer-status-text').innerText = "Connecting...";
             const conn = peer.connect(targetHostId, { reliable: true });
-            
             conn.on('open', () => { conn.send({ type: 'HELLO_HOST', viewerId: peer.id }); });
-            conn.on('data', (data) => {
-                if(data && data.type === 'END_BROADCAST') {
-                    alert("ホストが配信を終了しました");
-                    location.reload();
-                }
-            });
+            conn.on('data', (data) => { if(data && data.type === 'END_BROADCAST') { alert("ホストが配信を終了しました"); location.reload(); } });
             conn.on('error', () => { alert("接続エラー"); });
         }
 
         let extCamStream = null;
         async function initExternalCam() {
             try {
-                document.getElementById('mode-selection').style.display = 'none';
-                document.getElementById('extcam-mode').style.display = 'flex';
-                
-                const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 } }, 
-                    audio: { echoCancellation: true, noiseSuppression: true } 
-                };
-                
-                try {
-                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch(e) {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-                }
-
+                document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
+                const constraints = { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true } };
+                try { extCamStream = await navigator.mediaDevices.getUserMedia(constraints); } catch(e) { extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true }); }
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (FULL HD). Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable HD). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
         function connectExtCam() {
             const inputId = document.getElementById('ext-host-id').value.trim();
             if (!inputId || inputId.length !== 4) return alert("配信端末の4桁IDを入力してください");
-            
             const targetHostId = "wrc-broadcast-pro-" + inputId;
             document.getElementById('extcam-status-text').innerText = "Connecting to Host...";
-            
             const call = peer.call(targetHostId, extCamStream, { metadata: { type: 'ext-cam' } });
-            call.on('stream', () => {}); 
-            call.on('close', () => { alert("ホストから切断されました"); location.reload(); });
-            
+            call.on('stream', () => {}); call.on('close', () => { alert("ホストから切断されました"); location.reload(); });
             document.getElementById('extcam-ui').style.display = 'none';
         }
     </script>
