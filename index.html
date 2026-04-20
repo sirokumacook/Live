@@ -66,6 +66,7 @@
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: gray; border-radius: 2px; }
         .vol-label { font-size: 10px; color: #aaa; width: 40px; display: inline-block; }
 
+        .hidden-media-container { position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: 1; }
         .clear-btn { float: right; cursor: pointer; color: gray; font-size: 10px; border: 1px solid gray; padding: 2px 5px; border-radius: 3px; }
         .clear-btn:hover { background: rgba(255,255,255,0.1); color: white; }
     </style>
@@ -77,7 +78,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 32.0.0 (ULTIMATE FPS FIX & ANIMATION)</div>
+        <div id="version-text">VER 33.0.0 (ULTIMATE CONNECTION & CASCADE FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -114,22 +115,22 @@
         </div>
 
         <div id="preview-wrapper">
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: hidden;">
-                <video id="main-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
-                <img id="main-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
-                <video id="wipe-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
-                <img id="wipe-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
-                
-                <video id="main-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
-                <img id="main-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
-                <video id="wipe-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
-                <img id="wipe-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
-                
-                <audio id="bgm-player" crossorigin="anonymous" preload="auto"></audio>
-                <video id="ext-cam-video" autoplay playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+            <div class="hidden-media-container">
+                <div id="media-pool" style="width: 1920px; height: 1080px; position: relative;">
+                    <video id="main-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="main-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <video id="wipe-video-a" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="wipe-img-a" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    
+                    <video id="main-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="main-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <video id="wipe-video-b" loop playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                    <img id="wipe-img-b" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    
+                    <audio id="bgm-player" crossorigin="anonymous" preload="auto"></audio>
+                    <video id="ext-cam-video" autoplay playsinline muted crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; position:absolute;"></video>
+                </div>
             </div>
-            
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2; pointer-events: none;"></div>
 
             <div id="main-preview-area" style="z-index: 5;">
                 <div class="preview-label" style="background: var(--wrc-navy);">PREVIEW (NO LOGO / 60FPS)</div>
@@ -262,6 +263,9 @@
         // ==========================================
         const peerConfig = { config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] } };
         let extCamCall = null; 
+        
+        // ★重要：ホスト放送中のみレンダリングを許可するフラグ（CPU暴走・接続不良を完全防止）
+        let isBroadcasting = false;
 
         let transMode = 'cut'; // cut or fade
         let targetFPS = 24;
@@ -299,7 +303,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB21";
+        const dbName = "WrcBroadcastDB22";
         let db; let viewerConns = [];
 
         function initDB() {
@@ -337,6 +341,12 @@
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
 
+                // 再生監視
+                setInterval(() => {
+                    const bgm = document.getElementById('bgm-player');
+                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
+                    if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
+                }, 1000);
             } catch(e) {}
         };
 
@@ -508,7 +518,7 @@
         function stopBgm() { document.getElementById('bgm-player').pause(); activeBgmMedia = null; populateButtons('bgm', bgmFiles); }
 
         function setFPS(fps) {
-            targetFPS = fps; saveSetting('wrc_fps', fps);
+            targetFPS = fps; 
             const fpsLabel = document.getElementById('stream-fps-label');
             if(fpsLabel) fpsLabel.innerText = fps;
             document.getElementById('fps-24-btn').style.color = fps===24 ? '#4CAF50' : 'gray'; document.getElementById('fps-24-btn').style.borderColor = fps===24 ? '#4CAF50' : 'gray';
@@ -589,7 +599,9 @@
                 if (radioState.status !== 'HIDDEN') return;
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    if(!audioCtx) initAudioMixer(); 
+                    if(!audioCtx) return; 
+                    if (audioCtx.state === 'suspended') await audioCtx.resume();
+                    
                     micNode = audioCtx.createMediaStreamSource(micStream);
                     analyser = audioCtx.createAnalyser(); analyser.fftSize = 64; dataArray = new Uint8Array(analyser.frequencyBinCount);
                     micNode.connect(analyser); if (micGain) analyser.connect(micGain); 
@@ -620,6 +632,44 @@
             ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
         }
 
+        // カスケードアニメーション描画関数
+        function drawCascadeItem(ctx, textFont, textStr, valFont, valStr, rx, itemY, rw, itemH, progress, pStart, pEnd, bgOpacity) {
+            let p = (progress - pStart) / (pEnd - pStart);
+            if (p <= 0) return;
+            if (p > 1) p = 1.0;
+
+            let blockX, blockW, textAlpha = 0;
+            if (p < 0.5) {
+                let p2 = p * 2;
+                blockX = rx; blockW = rw * p2; textAlpha = 0;
+            } else {
+                let p2 = (p - 0.5) * 2;
+                blockX = rx + rw * p2; blockW = rw * (1 - p2); textAlpha = p2;
+            }
+
+            ctx.save(); ctx.beginPath(); ctx.rect(rx, itemY, rw, itemH); ctx.clip();
+            if (p > 0) {
+                ctx.fillStyle = `rgba(10, 25, 47, ${0.95 * bgOpacity})`; ctx.fillRect(rx, itemY, rw, itemH);
+                ctx.fillStyle = '#ff5722'; ctx.fillRect(rx, itemY, 10, itemH);
+            }
+            if (textAlpha > 0) {
+                ctx.globalAlpha = textAlpha;
+                if (valStr !== null) {
+                    ctx.fillStyle = '#fff'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                    let labelW = ctx.measureText(textStr).width;
+                    ctx.fillText(textStr, rx + 30, itemY + itemH/2 + 2);
+                    ctx.font = valFont; ctx.fillText(valStr, rx + 30 + labelW + 10, itemY + itemH/2 + 2);
+                } else {
+                    ctx.fillStyle = '#ff5722'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                    ctx.fillText(textStr, rx + 30, itemY + itemH/2 + 2);
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(rx + 30, itemY + itemH - 2, rw - 50, 2);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+            if (blockW > 0) { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, itemY, blockW, itemH); }
+            ctx.restore();
+        }
+
         function updateAudioVolumes() {
             if(!audioCtx) return;
             let vMain = parseFloat(document.getElementById('vol-main').value) || 0;
@@ -628,7 +678,6 @@
             let vBgm  = parseFloat(document.getElementById('vol-bgm').value) || 0;
 
             if(bgmGain) bgmGain.gain.value = vBgm;
-            if(micGain) micGain.gain.value = (radioState.status !== 'HIDDEN') ? vMic : 0;
 
             // MAIN Volume
             let mA = 0, mB = 0, mExt = 0;
@@ -681,9 +730,12 @@
         let lastStreamDrawTime = 0;
 
         function renderLoop(time) {
+            if (!isBroadcasting) return; // ★暴走ストッパー
             requestAnimationFrame(renderLoop);
+            
             let dt = (time - lastRenderTime) / 1000;
-            if(dt > 0.1) dt = 0.1;
+            if (isNaN(dt) || dt < 0) dt = 0;
+            if (dt > 0.1) dt = 0.1; // 異常ジャンプ防止
             lastRenderTime = time;
 
             // Progress Updates
@@ -697,11 +749,10 @@
             if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
 
             // ==================
-            // プレビューの描画 (60FPS)
+            // メインプレビューの描画 (60FPS)
             // ==================
             compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
-            // MAIN 描画
             let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
             let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
             
@@ -812,12 +863,14 @@
                     compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
                     compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
 
+                    // 波形（NaN汚染を強固にガード）
                     if (analyser && dataArray) {
                         analyser.getByteFrequencyData(dataArray);
                         const barWidth = 8; const gap = 4; const startX = rx + 200;
                         for (let i = 0; i < 16; i++) {
                             const val = dataArray[i]; const targetHeight = Math.max((val / 255) * 60, 4); 
-                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
+                            if (!isNaN(dt)) { smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15); }
+                            if (isNaN(smoothedBars[i])) smoothedBars[i] = 4;
                             compCtx.fillStyle = '#ff5722'; compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
                         }
                     }
@@ -826,51 +879,18 @@
                 compCtx.restore();
             }
 
-            // WEATHER 新アニメーション (下からカスケード)
+            // WEATHER ★新カスケードアニメーション★
             if (weatherState.status !== 'HIDDEN') {
-                if(weatherState.status === 'IN') { weatherState.progress += dt*2.0; if(weatherState.progress>=1){weatherState.progress=1; weatherState.status='VISIBLE';} }
-                else if(weatherState.status === 'OUT') { weatherState.progress -= dt*2.0; if(weatherState.progress<=0){weatherState.status='HIDDEN';} }
+                if(weatherState.status === 'IN') { weatherState.progress += dt*1.5; if(weatherState.progress>=1){weatherState.progress=1; weatherState.status='VISIBLE';} }
+                else if(weatherState.status === 'OUT') { weatherState.progress -= dt*1.5; if(weatherState.progress<=0){weatherState.status='HIDDEN';} }
                 
-                let rw = 450, rh = 180, rx = 50, ry = 600;
-                const blockX = rx - rw + (rw * 2) * weatherState.progress;
+                let p = weatherState.progress;
+                let rx = 50, ry = 600, rw = 450;
 
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                if(weatherState.progress > 0.5 || weatherState.status === 'VISIBLE') {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                    
-                    let innerP = Math.max(0, (weatherState.progress - 0.5) * 2);
-                    if(weatherState.status === 'OUT') innerP = Math.max(0, weatherState.progress * 2);
-                    if(weatherState.status === 'VISIBLE') innerP = 1.0;
-
-                    let pWind = Math.max(0, Math.min(1, innerP / 0.4));
-                    let pTemp = Math.max(0, Math.min(1, (innerP - 0.2) / 0.4));
-                    let pCond = Math.max(0, Math.min(1, (innerP - 0.4) / 0.4));
-                    let pHead = Math.max(0, Math.min(1, (innerP - 0.6) / 0.4));
-
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-
-                    compCtx.globalAlpha = pHead;
-                    compCtx.fillStyle = '#ff5722'; compCtx.font = "24px WRCCleanBold"; 
-                    compCtx.fillText("WEATHER CONDITION", rx + 30, ry + 20 + 20*(1-pHead));
-                    compCtx.fillStyle = 'rgba(255,255,255,0.2)'; 
-                    compCtx.fillRect(rx + 30, ry + 55, rw - 50, 2);
-
-                    compCtx.globalAlpha = pCond;
-                    compCtx.fillStyle = '#fff'; compCtx.font = "32px WRCCleanBold";
-                    compCtx.fillText(`COND: ${weatherData.cond}`, rx + 30, ry + 70 + 20*(1-pCond));
-
-                    compCtx.globalAlpha = pTemp;
-                    compCtx.font = "32px WRCCleanRoman"; 
-                    compCtx.fillText(`TEMP: ${weatherData.temp}`, rx + 30, ry + 105 + 20*(1-pTemp));
-
-                    compCtx.globalAlpha = pWind;
-                    compCtx.fillText(`WIND: ${weatherData.wind}`, rx + 30, ry + 140 + 20*(1-pWind));
-
-                    compCtx.globalAlpha = 1.0;
-                }
-                if(weatherState.status === 'IN' || weatherState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
-                compCtx.restore();
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "WIND:", "32px WRCCleanRoman", weatherData.wind, rx, ry + 135, rw, 45, p, 0.0, 0.4, 1.0);
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "TEMP:", "32px WRCCleanRoman", weatherData.temp, rx, ry + 90, rw, 45, p, 0.2, 0.6, 1.0);
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "COND:", "32px WRCCleanBold", weatherData.cond, rx, ry + 45, rw, 45, p, 0.4, 0.8, 1.0);
+                drawCascadeItem(compCtx, "24px WRCCleanBold", "WEATHER CONDITION", null, null, rx, ry, rw, 45, p, 0.6, 1.0, 1.0);
             }
 
             // SCHEDULE
@@ -906,7 +926,7 @@
                     compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
                     compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
 
-                    compCtx.font = "40px WRCCleanBold"; // 全てBold
+                    compCtx.font = "40px WRCCleanBold";
                     compCtx.fillText("LOCAL", sx + 510, sy + 70);
                     const localWidth = compCtx.measureText("LOCAL ").width;
                     compCtx.fillStyle = '#fff'; compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
@@ -930,6 +950,13 @@
                 }
             }
         }
+
+        // バックグラウンド専用の強制レンダリング・ループ (ホスト限定)
+        setInterval(() => {
+            if (!isBroadcasting) return;
+            const time = performance.now();
+            if (time - lastRenderTime > 100) { renderLoop(time); }
+        }, 1000 / 60);
 
         // ==========================================
         // 5. P2P WebRTC & Audio Mixer
@@ -1009,6 +1036,8 @@
                     conn.on('data', (data) => { if (data && data.type === 'HELLO_HOST') { document.getElementById('p2p-status').innerText = "Viewer Connected!"; document.getElementById('p2p-status').style.color = "yellow"; peer.call(data.viewerId, mixedStream); } });
                     conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
+                
+                isBroadcasting = true; // ★暴走ストッパー解除
                 requestAnimationFrame(renderLoop);
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
         }
@@ -1045,11 +1074,12 @@
         async function initExternalCam() {
             try {
                 document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
-                const constraints = { video: { facingMode: 'environment', width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 } }, audio: { echoCancellation: true, noiseSuppression: true } };
+                // 確実に接続させるため一旦HD画質指定に戻す（フルHD要求はスマホのカメラ起動を阻害することがあるため）
+                const constraints = { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: { echoCancellation: true, noiseSuppression: true } };
                 try { extCamStream = await navigator.mediaDevices.getUserMedia(constraints); } catch(e) { extCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true }); }
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (FULL HD). Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (HD). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
