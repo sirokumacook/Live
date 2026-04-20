@@ -69,7 +69,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 28.1.0 (UPLOAD STABILITY FIX)</div>
+        <div id="version-text">VER 29.0.0 (FPS ENGINE RESTORED)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -249,7 +249,7 @@
         }
 
         // ==========================================
-        // データベース構築 (Ver.18: 古いデータをクリーンアップ)
+        // データベース構築
         // ==========================================
         const dbName = "WrcBroadcastDB18";
         let db;
@@ -304,16 +304,6 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
-
-                setInterval(() => {
-                    const bgm = document.getElementById('bgm-player');
-                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
-                    const extCamVideo = document.getElementById('ext-cam-video');
-                    if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
-                    const monVideo = document.getElementById('extcam-monitor-video');
-                    if (monVideo && monVideo.srcObject && monVideo.paused) { monVideo.play().catch(()=>{}); }
-                    if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
-                }, 1000);
 
             } catch(e) {}
         };
@@ -586,21 +576,18 @@
         }
 
         function disconnectExtCamHost() {
-            if(extCamCall) { extCamCall.close(); extCamCall = null; }
             extCamConnected = false;
             document.getElementById('cam-control-group').style.display = 'none';
-            document.getElementById('extcam-offline-text').style.display = 'block';
-
+            
             const extVideo = document.getElementById('ext-cam-video');
-            const monitorVideo = document.getElementById('extcam-monitor-video');
             if(extVideo) extVideo.srcObject = null;
-            if(monitorVideo) monitorVideo.srcObject = null;
             
             if (isMainVideo === 'ext-cam') switchMainMedia(0);
             if (isWipeVideo === 'ext-cam') { isWipeVideo = null; activeWipeMedia = null; toggleWipe(false); }
             
             populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
         }
+
 
         // ==========================================
         // 3. RADIO (MIC) 機能
@@ -640,7 +627,7 @@
         }
 
         // ==========================================
-        // 4. キャンバス描画エンジン
+        // 4. キャンバス描画エンジン (正常な requestAnimationFrame に修正)
         // ==========================================
         const compositeCanvas = document.getElementById('composite-canvas');
         const compCtx = compositeCanvas.getContext('2d');
@@ -683,10 +670,13 @@
         let lastStreamDrawTime = 0;
 
         function renderLoop(time) {
+            requestAnimationFrame(renderLoop);
+            
             let dt = (time - lastRenderTime) / 1000;
             if(dt > 0.1) dt = 0.1;
             lastRenderTime = time;
 
+            // オーディオの可視状態連動
             if (audioCtx) {
                 if (mainGain) mainGain.gain.value = (isMainVideo === true) ? 1 : 0;
                 if (wipeGain) wipeGain.gain.value = (isWipeVideo === true && wipeState.status !== 'HIDDEN') ? 1 : 0;
@@ -891,17 +881,7 @@
                     streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
                 }
             }
-
-            requestAnimationFrame(renderLoop);
         }
-
-        // バックグラウンド専用の強制レンダリング・ループ（タブが隠れても映像を送り続ける）
-        setInterval(() => {
-            const time = performance.now();
-            if (time - lastRenderTime > 100) {
-                renderLoop(time);
-            }
-        }, 1000 / targetFPS);
 
 
         // ==========================================
@@ -992,14 +972,12 @@
                             const extVideo = document.getElementById('ext-cam-video');
                             const monitorVideo = document.getElementById('extcam-monitor-video');
                             
-                            // 確実にsrcを再セットする
                             extVideo.srcObject = remoteStream;
                             if (monitorVideo) {
                                 monitorVideo.srcObject = remoteStream;
                                 document.getElementById('extcam-offline-text').style.display = 'none';
                             }
 
-                            // 接続時の処理（初回のみ）
                             if(!extCamConnected) {
                                 extCamConnected = true;
                                 if (audioCtx && audioMixerDest) {
@@ -1016,8 +994,9 @@
                             }
                         };
 
-                        // WebRTC生トラックの監視（映像と音声の分割到着を逃さない）
                         call.on('stream', handleStream);
+                        
+                        // 【WebRTCネイティブ監視】映像トラックの遅延到着を確実にキャッチする
                         if (call.peerConnection) {
                             call.peerConnection.addEventListener('track', (event) => {
                                 if (event.streams && event.streams[0]) {
@@ -1093,9 +1072,9 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // 【限界突破・最高画質】可能な限り高解像度(FULL HD)での取得を強要する
+                // 【限界突破】FULL HDを強制要求
                 const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 } }, 
+                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
                     audio: { echoCancellation: true, noiseSuppression: true } 
                 };
                 
