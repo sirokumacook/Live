@@ -6,7 +6,6 @@
     <title>WRC P2P Broadcast System PRO</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* 2種類のフォントを読み込み */
         @font-face { font-family: 'WRCCleanBold'; src: url('./WRCCleanBold.ttf') format('truetype'); }
         @font-face { font-family: 'WRCCleanRoman'; src: url('./WRCCleanRoman.ttf') format('truetype'); }
         
@@ -29,7 +28,6 @@
         .ui-panel { z-index: 100; position: absolute; background: var(--wrc-navy); padding: 30px; border: 2px solid var(--wrc-orange); text-align: center; }
         .fullscreen-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
         input[type="text"], input[type="time"] { padding: 8px; font-size: 14px; background: var(--wrc-navy-dark); border: 1px solid var(--wrc-orange); color: white; margin-bottom: 8px; width: 100%; letter-spacing: 1px; font-family: 'WRCCleanRoman', sans-serif; }
-        
         .roman-text { font-family: 'WRCCleanRoman', sans-serif; text-transform: none; }
 
         /* ----- 放送モード: レイアウト ----- */
@@ -60,12 +58,12 @@
         
         select.file-select { width: 100%; padding: 5px; margin-bottom: 10px; background: var(--wrc-navy); color: white; border: 1px solid var(--wrc-orange); font-family: monospace; }
         
-        /* ボリュームスライダー */
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--wrc-orange); cursor: pointer; margin-top: -6px; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: gray; border-radius: 2px; }
         .vol-label { font-size: 10px; color: #aaa; width: 40px; display: inline-block; }
 
+        .hidden-media-container { position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: 1; }
         .clear-btn { float: right; cursor: pointer; color: gray; font-size: 10px; border: 1px solid gray; padding: 2px 5px; border-radius: 3px; }
         .clear-btn:hover { background: rgba(255,255,255,0.1); color: white; }
     </style>
@@ -77,7 +75,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 39.0.0 (ULTIMATE ENGINE & RADIO FIX)</div>
+        <div id="version-text">VER 40.0.0 (UNBREAKABLE LOOP & PRO CAM)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -103,7 +101,7 @@
             <input type="text" id="ext-host-id" placeholder="0000" maxlength="4" style="font-size: 24px;">
             <br>
             <button class="btn" onclick="connectExtCam()" style="border-color: #e91e63; color: #e91e63;">CONNECT</button>
-            <div id="extcam-status-text" class="status-text">Camera Ready (HD+)</div>
+            <div id="extcam-status-text" class="status-text">Camera Ready</div>
         </div>
         <video id="extcam-preview" class="fullscreen-video" autoplay playsinline muted style="object-fit: cover;"></video>
     </div>
@@ -182,8 +180,8 @@
             <div class="control-group" style="border-color: #00bcd4; min-width: 140px;">
                 <h3 style="color: #00bcd4; border-color: #00bcd4;">RADIO (MIC)</h3>
                 <div class="flex-row" style="margin-bottom: 10px;">
-                    <button class="btn-small" onclick="toggleOverlay('radio', true)" style="border-color: #00bcd4; color: #00bcd4;">MIC ON</button>
-                    <button class="btn-small" onclick="toggleOverlay('radio', false)" style="border-color: gray; color: gray;">OFF</button>
+                    <button class="btn-small" onclick="startRadio()" style="border-color: #00bcd4; color: #00bcd4;">MIC ON</button>
+                    <button class="btn-small" onclick="stopRadio()" style="border-color: gray; color: gray;">OFF</button>
                 </div>
                 <div id="cam-control-group" style="display:none; flex-direction: column; margin-top: 10px;">
                     <h3 style="color: #e91e63; border-color: #e91e63; margin-top:0;">EXT CAM</h3>
@@ -233,7 +231,6 @@
                     <button class="btn-small" onclick="toggleOverlay('weather', true)" style="border-color: #4CAF50; color: #4CAF50;">SHOW</button>
                     <button class="btn-small" onclick="toggleOverlay('weather', false)" style="border-color: gray; color: gray;">HIDE</button>
                 </div>
-                
                 <h3 style="color: #9c27b0; border-color: #9c27b0; margin-top: 5px;">SCHEDULE</h3>
                 <div class="flex-row">
                     <input type="time" id="schedule-time" style="width: 45%; margin-bottom:0; padding:4px;">
@@ -266,7 +263,7 @@
         
         let isBroadcasting = false; 
 
-        // 新・完全安全なステートマシン
+        // 無敵のステートマシン（バグを生まない絶対安全な仕組み）
         const Overlays = {
             wipe: { active: false, val: 0 },
             text1: { active: false, val: 0, l1: '', l2: '' },
@@ -276,51 +273,61 @@
             radio: { active: false, val: 0 }
         };
 
-        // マイクの連続クリックによるシステムクラッシュを防ぐロック
-        let isTogglingRadio = false;
-
-        async function toggleOverlay(name, isActive) {
-            if(name === 'radio') {
-                if(isTogglingRadio) return; // 処理中なら無視（連打ブロック）
-                isTogglingRadio = true;
-                try {
-                    if(isActive && !micStream) {
-                        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        if(!audioCtx) initAudioMixer(); 
-                        if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
-                        
-                        micNode = audioCtx.createMediaStreamSource(micStream);
-                        analyser = audioCtx.createAnalyser(); 
-                        analyser.fftSize = 64; 
-                        dataArray = new Uint8Array(analyser.frequencyBinCount);
-                        
-                        micNode.connect(analyser); 
-                        if (micGain) analyser.connect(micGain); 
-                        Overlays.radio.active = true;
-                    } else if(!isActive && micStream) {
-                        Overlays.radio.active = false;
-                        micStream.getTracks().forEach(t => t.stop()); 
-                        micStream = null;
-                        if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
-                    }
-                } catch(e) {
-                    alert("マイクのアクセスが拒否されました");
-                    Overlays.radio.active = false;
-                }
-                isTogglingRadio = false;
-            } else {
-                // ラジオ以外の通常のオーバーレイ処理
-                Overlays[name].active = isActive;
-                if(isActive && (name === 'text1' || name === 'text2')) {
-                    const num = name === 'text1' ? 1 : 2;
-                    Overlays[name].l1 = document.getElementById(`t${num}-l1`).value;
-                    Overlays[name].l2 = document.getElementById(`t${num}-l2`).value;
-                }
-                if(isActive && name === 'schedule') {
-                    Overlays.schedule.time = document.getElementById('schedule-time').value || "00:00";
-                    Overlays.schedule.text = document.getElementById('schedule-text').value || "NEXT STAGE";
-                }
+        function toggleOverlay(name, isActive) {
+            Overlays[name].active = isActive;
+            if(isActive && (name === 'text1' || name === 'text2')) {
+                const num = name === 'text1' ? 1 : 2;
+                Overlays[name].l1 = document.getElementById(`t${num}-l1`).value;
+                Overlays[name].l2 = document.getElementById(`t${num}-l2`).value;
             }
+            if(isActive && name === 'schedule') {
+                Overlays.schedule.time = document.getElementById('schedule-time').value || "00:00";
+                Overlays.schedule.text = document.getElementById('schedule-text').value || "NEXT STAGE";
+            }
+        }
+
+        // ==========================================
+        // RADIO (マイク) 専用の完全独立ロジック
+        // ==========================================
+        let micStream = null; let micNode = null; let analyser = null; let dataArray = null;
+        let smoothedBars = new Array(16).fill(4);
+
+        async function startRadio() {
+            if (Overlays.radio.active) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("マイク機能はHTTPS環境またはlocalhostでのみ使用可能です。");
+                return;
+            }
+            try {
+                if (!audioCtx) initAudioMixer();
+                if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+
+                if (!micStream) {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                    micNode = audioCtx.createMediaStreamSource(micStream);
+                    analyser = audioCtx.createAnalyser(); 
+                    analyser.fftSize = 64; 
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    micNode.connect(analyser); 
+                    if (micGain) analyser.connect(micGain); 
+                }
+                Overlays.radio.active = true;
+            } catch (err) {
+                console.error("Mic Error:", err);
+                alert("マイクのアクセスが拒否されたか、デバイスが見つかりません。");
+            }
+        }
+
+        function stopRadio() {
+            Overlays.radio.active = false;
+            // アニメーションが消えるまで待ってから完全にマイクをオフにする
+            setTimeout(() => {
+                if (!Overlays.radio.active && micStream) {
+                    micStream.getTracks().forEach(t => t.stop());
+                    micStream = null;
+                    if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
+                }
+            }, 1000);
         }
 
         let transMode = 'cut';
@@ -354,7 +361,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB28";
+        const dbName = "WrcBroadcastDB30";
         let db; let viewerConns = [];
 
         function initDB() {
@@ -391,20 +398,6 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
-
-                // 安全な低頻度（2秒ごと）の監視タイマー。絶対に暴走しない。
-                setInterval(() => {
-                    const bgm = document.getElementById('bgm-player');
-                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
-                    
-                    // カメラ映像のフリーズ復帰用。1秒間に60回呼ぶとクラッシュするため2秒に1回に制限
-                    if(isBroadcasting) {
-                        const extCamVideo = document.getElementById('ext-cam-video');
-                        if (extCamVideo && extCamVideo.srcObject && extCamVideo.paused) { extCamVideo.play().catch(()=>{}); }
-                        const monVideo = document.getElementById('extcam-monitor-video');
-                        if (monVideo && monVideo.srcObject && monVideo.paused) { monVideo.play().catch(()=>{}); }
-                    }
-                }, 2000);
             } catch(e) {}
         };
 
@@ -477,7 +470,6 @@
             const input = document.getElementById(`${type}-file`);
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
-            
             if(type === 'main') { mainFiles = [...mainFiles, ...newFiles].slice(0, 9); saveFilesToDB('main', mainFiles); populateButtons('main', mainFiles); }
             if(type === 'wipe') { wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); saveFilesToDB('wipe', wipeFiles); populateButtons('wipe', wipeFiles); }
             input.value = '';
@@ -523,10 +515,8 @@
                     type = 'img';
                 }
             }
-
             if (nextBuf === 'a') { trans.main.mediaA = mediaEl; trans.main.typeA = type; }
             else                 { trans.main.mediaB = mediaEl; trans.main.typeB = type; }
-
             trans.main.progress = (transMode === 'cut') ? 1.0 : 0.0;
         }
 
@@ -556,10 +546,8 @@
                     type = 'img';
                 }
             }
-
             if (nextBuf === 'a') { trans.wipe.mediaA = mediaEl; trans.wipe.typeA = type; }
             else                 { trans.wipe.mediaB = mediaEl; trans.wipe.typeB = type; }
-
             trans.wipe.progress = (transMode === 'cut') ? 1.0 : 0.0;
             toggleOverlay('wipe', true);
         }
@@ -694,228 +682,229 @@
         let lastRenderTime = performance.now();
         let lastStreamDrawTime = 0;
 
-        // ★完全にストッパー無しの独立した無敵ループ★
-        function renderLoop() {
-            requestAnimationFrame(renderLoop);
+        // ★ストッパーの位置を修正。requestAnimationFrameは必ずループさせる。
+        function renderLoop(time) {
+            requestAnimationFrame(renderLoop); // 必ず次を予約する（ループを殺さない）
+
+            if (!isBroadcasting) return; // 放送中でなければ重い描画処理だけスキップする
             
-            let time = performance.now();
-            let dt = (time - lastRenderTime) / 1000;
-            if (isNaN(dt) || dt < 0) dt = 0;
-            if (dt > 0.1) dt = 0.1; 
-            lastRenderTime = time;
+            try {
+                let dt = (time - lastRenderTime) / 1000;
+                if (isNaN(dt) || dt < 0) dt = 0;
+                if (dt > 0.1) dt = 0.1; 
+                lastRenderTime = time;
 
-            // --- 状態の更新 (0.0 〜 1.0) ---
-            const animSpeed = 2.5;
-            for (let key in Overlays) {
-                let o = Overlays[key];
-                if (o.active && o.val < 1.0) o.val = Math.min(1.0, o.val + dt * animSpeed);
-                if (!o.active && o.val > 0.0) o.val = Math.max(0.0, o.val - dt * animSpeed);
-            }
+                // --- 状態の更新 (0.0 〜 1.0) ---
+                const animSpeed = 2.5;
+                for (let key in Overlays) {
+                    let o = Overlays[key];
+                    if (o.active && o.val < 1.0) o.val = Math.min(1.0, o.val + dt * animSpeed);
+                    if (!o.active && o.val > 0.0) o.val = Math.max(0.0, o.val - dt * animSpeed);
+                }
 
-            const fadeSpeed = 1.0; 
-            if (trans.main.progress < 1.0) { trans.main.progress += dt / fadeSpeed; if(trans.main.progress>=1.0){trans.main.progress=1.0; trans.main.buf = trans.main.nextBuf;} }
-            if (trans.wipe.progress < 1.0) { trans.wipe.progress += dt / fadeSpeed; if(trans.wipe.progress>=1.0){trans.wipe.progress=1.0; trans.wipe.buf = trans.wipe.nextBuf;} }
+                const fadeSpeed = 1.0; 
+                if (trans.main.progress < 1.0) { trans.main.progress += dt / fadeSpeed; if(trans.main.progress>=1.0){trans.main.progress=1.0; trans.main.buf = trans.main.nextBuf;} }
+                if (trans.wipe.progress < 1.0) { trans.wipe.progress += dt / fadeSpeed; if(trans.wipe.progress>=1.0){trans.wipe.progress=1.0; trans.wipe.buf = trans.wipe.nextBuf;} }
 
-            updateAudioVolumes();
+                updateAudioVolumes();
 
-            // ==================
-            // 左側プレビューの描画 (60FPS)
-            // ==================
-            compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
-            
-            let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
-            let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
-            
-            if (trans.main.progress < 1.0) {
-                if(mCur) safeDrawImageCover(compCtx, mCur, 0, 0, 1920, 1080);
-                compCtx.globalAlpha = trans.main.progress;
-                if(mNxt) safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
-                compCtx.globalAlpha = 1.0;
-            } else {
-                if(mNxt) { safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080); }
-            }
-
-            // WIPE
-            if (Overlays.wipe.val > 0) {
-                let p = Overlays.wipe.val;
-                const ww = 480, wh = 270, fixedX = 50, fixedY = 800;
-                const blockX = fixedX - ww + (ww * 2) * p;
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
+                // ==================
+                // 左側プレビューの描画 (60FPS)
+                // ==================
+                compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
                 
-                if(p > 0.5) {
-                    let wCur = trans.wipe.buf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
-                    let wNxt = trans.wipe.nextBuf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
-                    if (trans.wipe.progress < 1.0) {
-                        if(wCur) safeDrawImageCover(compCtx, wCur, fixedX, fixedY, ww, wh);
-                        compCtx.globalAlpha = trans.wipe.progress;
-                        if(wNxt) safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
-                        compCtx.globalAlpha = 1.0;
-                    } else {
-                        if(wNxt) { safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh); }
-                    }
-                    compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
-                }
-                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh);
-                compCtx.restore();
-            }
-
-            // TEXT
-            function drawTextOverlay(stateObj, align, ry) {
-                let p = stateObj.val;
-                if (p <= 0) return;
-                compCtx.font = "48px WRCCleanBold"; let w1 = compCtx.measureText(stateObj.l1).width;
-                compCtx.font = "32px WRCCleanRoman"; let w2 = compCtx.measureText(stateObj.l2).width;
-                let rw = Math.max(w1, w2) + 60; rw = Math.max(rw, 300);
-                let rh = stateObj.l2 ? 120 : 80;
-                let rx = align === 'left' ? 50 : 1920 - 50 - rw;
-                let blockX = align === 'left' ? rx - rw + (rw * 2) * p : rx + rw - (rw * 2) * p;
-
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                if(p > 0.5) {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                    compCtx.fillStyle = '#ff5722'; 
-                    if (align === 'left') compCtx.fillRect(rx, ry, 10, rh); else compCtx.fillRect(rx + rw - 10, ry, 10, rh);
-                    compCtx.fillStyle = '#fff'; compCtx.textBaseline = 'top';
-                    let tx = align === 'left' ? rx + 30 : rx + rw - 30;
-                    compCtx.textAlign = align === 'left' ? 'left' : 'right';
-                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText(stateObj.l1, tx, ry + 15);
-                    if (stateObj.l2) {
-                        compCtx.fillStyle = '#ccc'; compCtx.font = "32px WRCCleanRoman"; compCtx.fillText(stateObj.l2, tx, ry + 70);
-                    }
-                }
-                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
-                compCtx.restore();
-            }
-
-            drawTextOverlay(Overlays.text1, 'left', 820);
-            drawTextOverlay(Overlays.text2, 'right', 820);
-
-            // RADIO (MIC)
-            if (Overlays.radio.val > 0) {
-                let p = Overlays.radio.val;
-                const rw = 400, rh = 100, rx = 50, ry = 540;
-                const blockX = rx - rw + (rw * 2) * p;
+                let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
+                let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
                 
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                if(p > 0.5) {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
-
-                    if (analyser && dataArray && p === 1.0) { // 完全に開ききってから波形を動かす
-                        analyser.getByteFrequencyData(dataArray);
-                        const barWidth = 8; const gap = 4; const startX = rx + 200;
-                        for (let i = 0; i < 16; i++) {
-                            const val = dataArray[i] || 0; 
-                            const targetHeight = Math.max((val / 255) * 60, 4); 
-                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
-                            if(isNaN(smoothedBars[i])) smoothedBars[i] = 4; // NaN汚染を絶対防御
-                            compCtx.fillStyle = '#ff5722';
-                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
-                        }
-                    }
+                if (trans.main.progress < 1.0) {
+                    if(mCur) safeDrawImageCover(compCtx, mCur, 0, 0, 1920, 1080);
+                    compCtx.globalAlpha = trans.main.progress;
+                    if(mNxt) safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                    compCtx.globalAlpha = 1.0;
+                } else {
+                    if(mNxt) { safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080); }
                 }
-                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
-                compCtx.restore();
-            }
 
-            // WEATHER (WIPEと同じ位置)
-            if (Overlays.weather.val > 0) {
-                let p = Overlays.weather.val;
-                let rx = 50, ry = 800, rw = 480; 
-
-                function drawCascadeItem(ctx, textFont, textStr, valFont, valStr, c_rx, itemY, c_rw, itemH, progress, pStart, pEnd) {
-                    let pInner = (progress - pStart) / (pEnd - pStart);
-                    if (pInner <= 0) return;
-                    if (pInner > 1) pInner = 1.0;
-                    let blockX, blockW, textAlpha = 0;
-                    if (pInner < 0.5) { let p2 = pInner * 2; blockX = c_rx; blockW = c_rw * p2; textAlpha = 0; } 
-                    else { let p2 = (pInner - 0.5) * 2; blockX = c_rx + c_rw * p2; blockW = c_rw * (1 - p2); textAlpha = p2; }
-                    ctx.save(); ctx.beginPath(); ctx.rect(c_rx, itemY, c_rw, itemH); ctx.clip();
-                    if (pInner > 0) { ctx.fillStyle = `rgba(10, 25, 47, 0.95)`; ctx.fillRect(c_rx, itemY, c_rw, itemH); ctx.fillStyle = '#ff5722'; ctx.fillRect(c_rx, itemY, 10, itemH); }
-                    if (textAlpha > 0) {
-                        ctx.globalAlpha = textAlpha;
-                        if (valStr !== null) {
-                            ctx.fillStyle = '#fff'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                            let labelW = ctx.measureText(textStr).width;
-                            ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
-                            ctx.font = valFont; ctx.fillText(valStr, c_rx + 30 + labelW + 10, itemY + itemH/2 + 2);
+                // WIPE
+                if (Overlays.wipe.val > 0) {
+                    let p = Overlays.wipe.val;
+                    const ww = 480, wh = 270, fixedX = 50, fixedY = 800;
+                    const blockX = fixedX - ww + (ww * 2) * p;
+                    compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
+                    
+                    if(p > 0.5) {
+                        let wCur = trans.wipe.buf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
+                        let wNxt = trans.wipe.nextBuf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
+                        if (trans.wipe.progress < 1.0) {
+                            if(wCur) safeDrawImageCover(compCtx, wCur, fixedX, fixedY, ww, wh);
+                            compCtx.globalAlpha = trans.wipe.progress;
+                            if(wNxt) safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
+                            compCtx.globalAlpha = 1.0;
                         } else {
-                            ctx.fillStyle = '#ff5722'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                            ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
-                            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(c_rx + 30, itemY + itemH - 2, c_rw - 50, 2);
+                            if(wNxt) { safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh); }
                         }
-                        ctx.globalAlpha = 1.0;
+                        compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
                     }
-                    if (blockW > 0) { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, itemY, blockW, itemH); }
-                    ctx.restore();
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh);
+                    compCtx.restore();
                 }
 
-                drawCascadeItem(compCtx, "32px WRCCleanBold", "WIND:", "32px WRCCleanRoman", weatherData.wind, rx, ry + 135, rw, 45, p, 0.0, 0.4);
-                drawCascadeItem(compCtx, "32px WRCCleanBold", "TEMP:", "32px WRCCleanRoman", weatherData.temp, rx, ry + 90, rw, 45, p, 0.2, 0.6);
-                drawCascadeItem(compCtx, "32px WRCCleanBold", "COND:", "32px WRCCleanBold", weatherData.cond, rx, ry + 45, rw, 45, p, 0.4, 0.8);
-                drawCascadeItem(compCtx, "24px WRCCleanBold", "WEATHER CONDITION", null, null, rx, ry, rw, 45, p, 0.6, 1.0);
-            }
+                // TEXT
+                function drawTextOverlay(stateObj, align, ry) {
+                    let p = stateObj.val;
+                    if (p <= 0) return;
+                    compCtx.font = "48px WRCCleanBold"; let w1 = compCtx.measureText(stateObj.l1).width;
+                    compCtx.font = "32px WRCCleanRoman"; let w2 = compCtx.measureText(stateObj.l2).width;
+                    let rw = Math.max(w1, w2) + 60; rw = Math.max(rw, 300);
+                    let rh = stateObj.l2 ? 120 : 80;
+                    let rx = align === 'left' ? 50 : 1920 - 50 - rw;
+                    let blockX = align === 'left' ? rx - rw + (rw * 2) * p : rx + rw - (rw * 2) * p;
 
-            // SCHEDULE
-            if (Overlays.schedule.val > 0) {
-                let p = Overlays.schedule.val;
-                const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; 
-                const blockX = sx - sw + (sw * 2) * p;
-
-                const now = new Date(); let targetH = 0, targetM = 0;
-                if (Overlays.schedule.time) { const parts = Overlays.schedule.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
-                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
-                let diff = targetDate - now; if (diff < 0) diff = 0; 
-                const diffSec = Math.floor(diff / 1000);
-                const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
-                const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
-                const ss = String(diffSec % 60).padStart(2, '0');
-                const countdownStr = `${hh}:${mm}:${ss}`;
-
-                compCtx.save(); compCtx.beginPath(); compCtx.rect(sx, sy, sw, sh); compCtx.clip();
-                if(p > 0.5) {
-                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
-                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
-
-                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                    compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
-
-                    compCtx.fillStyle = 'rgba(255,255,255,0.3)';
-                    compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
-
-                    compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
-                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                    compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
-
-                    compCtx.font = "40px WRCCleanBold";
-                    compCtx.fillText("LOCAL", sx + 510, sy + 70);
-                    const localWidth = compCtx.measureText("LOCAL ").width;
-                    compCtx.fillStyle = '#fff'; compCtx.fillText(`${Overlays.schedule.time}   ${Overlays.schedule.text}`, sx + 510 + localWidth, sy + 70);
+                    compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                    if(p > 0.5) {
+                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                        compCtx.fillStyle = '#ff5722'; 
+                        if (align === 'left') compCtx.fillRect(rx, ry, 10, rh); else compCtx.fillRect(rx + rw - 10, ry, 10, rh);
+                        compCtx.fillStyle = '#fff'; compCtx.textBaseline = 'top';
+                        let tx = align === 'left' ? rx + 30 : rx + rw - 30;
+                        compCtx.textAlign = align === 'left' ? 'left' : 'right';
+                        compCtx.font = "48px WRCCleanBold"; compCtx.fillText(stateObj.l1, tx, ry + 15);
+                        if (stateObj.l2) {
+                            compCtx.fillStyle = '#ccc'; compCtx.font = "32px WRCCleanRoman"; compCtx.fillText(stateObj.l2, tx, ry + 70);
+                        }
+                    }
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
+                    compCtx.restore();
                 }
-                compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); 
-                compCtx.restore();
-            }
 
-            // ==================
-            // 右下へのファイナルストリーム描画
-            // ==================
-            const elapsedStream = time - lastStreamDrawTime;
-            if (elapsedStream >= (1000 / targetFPS)) {
-                lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
-                streamCtx.clearRect(0,0,1920,1080);
-                streamCtx.drawImage(compositeCanvas, 0, 0);
-                
-                if(logoState && logoLoaded && logoImg.height > 0) {
-                    const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
-                    streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
+                drawTextOverlay(Overlays.text1, 'left', 820);
+                drawTextOverlay(Overlays.text2, 'right', 820);
+
+                // RADIO (MIC) - 波形NaN汚染の完全防御
+                if (Overlays.radio.val > 0) {
+                    let p = Overlays.radio.val;
+                    const rw = 400, rh = 100, rx = 50, ry = 540;
+                    const blockX = rx - rw + (rw * 2) * p;
+                    
+                    compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                    if(p > 0.5) {
+                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                        compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
+                        compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                        compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
+
+                        if (analyser && dataArray && p === 1.0) {
+                            analyser.getByteFrequencyData(dataArray);
+                            const barWidth = 8; const gap = 4; const startX = rx + 200;
+                            for (let i = 0; i < 16; i++) {
+                                const val = dataArray[i] || 0; 
+                                const targetHeight = Math.max((val / 255) * 60, 4); 
+                                smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
+                                if(isNaN(smoothedBars[i]) || !isFinite(smoothedBars[i])) smoothedBars[i] = 4; // 絶対防御
+                                compCtx.fillStyle = '#ff5722';
+                                compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
+                            }
+                        }
+                    }
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh);
+                    compCtx.restore();
                 }
+
+                // WEATHER (WIPEと同じ位置カスケード)
+                if (Overlays.weather.val > 0) {
+                    let p = Overlays.weather.val;
+                    let rx = 50, ry = 800, rw = 480; 
+
+                    function drawCascadeItem(ctx, textFont, textStr, valFont, valStr, c_rx, itemY, c_rw, itemH, progress, pStart, pEnd) {
+                        let pInner = (progress - pStart) / (pEnd - pStart);
+                        if (pInner <= 0) return;
+                        if (pInner > 1) pInner = 1.0;
+                        let blockX, blockW, textAlpha = 0;
+                        if (pInner < 0.5) { let p2 = pInner * 2; blockX = c_rx; blockW = c_rw * p2; textAlpha = 0; } 
+                        else { let p2 = (pInner - 0.5) * 2; blockX = c_rx + c_rw * p2; blockW = c_rw * (1 - p2); textAlpha = p2; }
+                        ctx.save(); ctx.beginPath(); ctx.rect(c_rx, itemY, c_rw, itemH); ctx.clip();
+                        if (pInner > 0) { ctx.fillStyle = `rgba(10, 25, 47, 0.95)`; ctx.fillRect(c_rx, itemY, c_rw, itemH); ctx.fillStyle = '#ff5722'; ctx.fillRect(c_rx, itemY, 10, itemH); }
+                        if (textAlpha > 0) {
+                            ctx.globalAlpha = textAlpha;
+                            if (valStr !== null) {
+                                ctx.fillStyle = '#fff'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                                let labelW = ctx.measureText(textStr).width;
+                                ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
+                                ctx.font = valFont; ctx.fillText(valStr, c_rx + 30 + labelW + 10, itemY + itemH/2 + 2);
+                            } else {
+                                ctx.fillStyle = '#ff5722'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                                ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
+                                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(c_rx + 30, itemY + itemH - 2, c_rw - 50, 2);
+                            }
+                            ctx.globalAlpha = 1.0;
+                        }
+                        if (blockW > 0) { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, itemY, blockW, itemH); }
+                        ctx.restore();
+                    }
+
+                    drawCascadeItem(compCtx, "32px WRCCleanBold", "WIND:", "32px WRCCleanRoman", weatherData.wind, rx, ry + 135, rw, 45, p, 0.0, 0.4);
+                    drawCascadeItem(compCtx, "32px WRCCleanBold", "TEMP:", "32px WRCCleanRoman", weatherData.temp, rx, ry + 90, rw, 45, p, 0.2, 0.6);
+                    drawCascadeItem(compCtx, "32px WRCCleanBold", "COND:", "32px WRCCleanBold", weatherData.cond, rx, ry + 45, rw, 45, p, 0.4, 0.8);
+                    drawCascadeItem(compCtx, "24px WRCCleanBold", "WEATHER CONDITION", null, null, rx, ry, rw, 45, p, 0.6, 1.0);
+                }
+
+                // SCHEDULE
+                if (Overlays.schedule.val > 0) {
+                    let p = Overlays.schedule.val;
+                    const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; 
+                    const blockX = sx - sw + (sw * 2) * p;
+
+                    const now = new Date(); let targetH = 0, targetM = 0;
+                    if (Overlays.schedule.time) { const parts = Overlays.schedule.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
+                    let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
+                    let diff = targetDate - now; if (diff < 0) diff = 0; 
+                    const diffSec = Math.floor(diff / 1000);
+                    const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
+                    const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
+                    const ss = String(diffSec % 60).padStart(2, '0');
+                    const countdownStr = `${hh}:${mm}:${ss}`;
+
+                    compCtx.save(); compCtx.beginPath(); compCtx.rect(sx, sy, sw, sh); compCtx.clip();
+                    if(p > 0.5) {
+                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
+                        compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
+                        compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
+                        compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                        compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
+                        compCtx.fillStyle = 'rgba(255,255,255,0.3)';
+                        compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
+                        compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
+                        compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
+                        compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
+                        compCtx.font = "40px WRCCleanBold";
+                        compCtx.fillText("LOCAL", sx + 510, sy + 70);
+                        const localWidth = compCtx.measureText("LOCAL ").width;
+                        compCtx.fillStyle = '#fff'; compCtx.fillText(`${Overlays.schedule.time}   ${Overlays.schedule.text}`, sx + 510 + localWidth, sy + 70);
+                    }
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); 
+                    compCtx.restore();
+                }
+
+                // ==================
+                // 右下へのファイナルストリーム描画
+                // ==================
+                const elapsedStream = time - lastStreamDrawTime;
+                if (elapsedStream >= (1000 / targetFPS)) {
+                    lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
+                    streamCtx.clearRect(0,0,1920,1080);
+                    streamCtx.drawImage(compositeCanvas, 0, 0);
+                    
+                    if(logoState && logoLoaded && logoImg.height > 0) {
+                        const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
+                        streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
+                    }
+                }
+            } catch (err) {
+                // エラーでループが死ぬのを絶対防止
             }
         }
         
-        // 描画エンジン起動 (ここで1回だけ呼ぶ。絶対に複数呼ばない)
+        // 描画エンジン起動
         requestAnimationFrame(renderLoop);
 
         // ==========================================
@@ -997,7 +986,7 @@
                     conn.on('close', () => { viewerConns = viewerConns.filter(c => c !== conn); });
                 });
                 
-                isBroadcasting = true; // 配信開始フラグ
+                isBroadcasting = true; // ★放送スタート
             } catch (err) { alert("起動エラーが発生しました: " + err.message); }
         }
 
@@ -1034,19 +1023,27 @@
             try {
                 document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // ★安定最優先。HD要求をやめ、スマホの「一番素直に動くデフォルト設定」で起動する。
-                const constraints = { video: { facingMode: 'environment' }, audio: true };
-                
-                try {
-                    extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch(e) {
-                    extCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // ★カメラを100%起動させるための4段階プログレッシブ設計★
+                const constraintsList = [
+                    { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: { echoCancellation: true, noiseSuppression: true } },
+                    { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true },
+                    { video: { facingMode: 'environment' }, audio: true },
+                    { video: true, audio: true } // 最終手段
+                ];
+
+                for (let c of constraintsList) {
+                    try {
+                        extCamStream = await navigator.mediaDevices.getUserMedia(c);
+                        break; 
+                    } catch(e) { console.warn("Failed with constraint:", c); }
                 }
+
+                if(!extCamStream) throw new Error("カメラが見つかりません");
 
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable HD). Enter HOST ID."; });
-            } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready. Enter HOST ID."; });
+            } catch(e) { alert("カメラの起動に失敗しました。権限を確認してください。"); }
         }
 
         function connectExtCam() {
