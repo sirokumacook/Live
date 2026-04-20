@@ -66,7 +66,6 @@
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: gray; border-radius: 2px; }
         .vol-label { font-size: 10px; color: #aaa; width: 40px; display: inline-block; }
 
-        .hidden-media-container { position: absolute; width: 1px; height: 1px; opacity: 0.01; overflow: hidden; pointer-events: none; z-index: 1; }
         .clear-btn { float: right; cursor: pointer; color: gray; font-size: 10px; border: 1px solid gray; padding: 2px 5px; border-radius: 3px; }
         .clear-btn:hover { background: rgba(255,255,255,0.1); color: white; }
     </style>
@@ -78,7 +77,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 36.0.0 (ULTIMATE FIX: LOOP, BUTTONS & CAM)</div>
+        <div id="version-text">VER 37.0.0 (ULTIMATE ENGINE REBUILD & SECURITY FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -260,10 +259,12 @@
 
     <script>
         // ==========================================
-        // 0. 通信設定
+        // 0. 通信設定 & グローバル変数
         // ==========================================
         const peerConfig = { config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] } };
         let extCamCall = null; 
+        
+        let isBroadcasting = false; 
 
         let transMode = 'cut';
         let targetFPS = 24;
@@ -301,7 +302,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB25";
+        const dbName = "WrcBroadcastDB26";
         let db; let viewerConns = [];
 
         function initDB() {
@@ -338,12 +339,6 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
-
-                // 再生監視 (音楽のみ)
-                setInterval(() => {
-                    const bgm = document.getElementById('bgm-player');
-                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
-                }, 1000);
             } catch(e) {}
         };
 
@@ -454,7 +449,7 @@
                 const url = URL.createObjectURL(file);
                 if (file.type.startsWith('video/')) {
                     mediaEl = document.getElementById(`main-video-${nextBuf}`);
-                    mediaEl.src = url; mediaEl.muted = false; mediaEl.play().catch(()=>{});
+                    mediaEl.src = url; mediaEl.muted = false; mediaEl.load(); mediaEl.play().catch(()=>{});
                     type = 'video';
                 } else {
                     mediaEl = document.getElementById(`main-img-${nextBuf}`);
@@ -487,7 +482,7 @@
                 const url = URL.createObjectURL(file);
                 if (file.type.startsWith('video/')) {
                     mediaEl = document.getElementById(`wipe-video-${nextBuf}`);
-                    mediaEl.src = url; mediaEl.muted = false; mediaEl.play().catch(()=>{});
+                    mediaEl.src = url; mediaEl.muted = false; mediaEl.load(); mediaEl.play().catch(()=>{});
                     type = 'video';
                 } else {
                     mediaEl = document.getElementById(`wipe-img-${nextBuf}`);
@@ -601,7 +596,7 @@
                 const offsetX = x + (w - drawW) / 2, offsetY = y + (h - drawH) / 2;
                 ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
                 ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
-            } catch(e) { /* エラー握り潰し */ }
+            } catch(e) {}
         }
 
         function updateAudioVolumes() {
@@ -661,257 +656,263 @@
         let lastRenderTime = performance.now();
         let lastStreamDrawTime = 0;
 
-        // ★ストッパーなし！常にループを回して描画を止めない
-        function renderLoop(time) {
-            requestAnimationFrame(renderLoop);
+        // ★ストッパーなしの完全独立ループタイマー★
+        function renderLoop() {
+            let time = performance.now();
+            let dt = (time - lastRenderTime) / 1000;
+            if (isNaN(dt) || dt < 0) dt = 0;
+            if (dt > 0.1) dt = 0.1; 
+            lastRenderTime = time;
+
+            const fadeSpeed = 1.0; 
+            if (trans.main.progress < 1.0) { trans.main.progress += dt / fadeSpeed; if(trans.main.progress>=1.0){trans.main.progress=1.0; trans.main.buf = trans.main.nextBuf;} }
+            if (trans.wipe.progress < 1.0) { trans.wipe.progress += dt / fadeSpeed; if(trans.wipe.progress>=1.0){trans.wipe.progress=1.0; trans.wipe.buf = trans.wipe.nextBuf;} }
+
+            updateAudioVolumes();
+
+            // ==================
+            // 左側プレビューの描画 (60FPS / NO LOGO)
+            // ==================
+            compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
             
-            try {
-                let dt = (time - lastRenderTime) / 1000;
-                if (isNaN(dt) || dt < 0) dt = 0;
-                if (dt > 0.1) dt = 0.1; 
-                lastRenderTime = time;
+            let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
+            let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
+            
+            if (trans.main.progress < 1.0) {
+                if(mCur) safeDrawImageCover(compCtx, mCur, 0, 0, 1920, 1080);
+                compCtx.globalAlpha = trans.main.progress;
+                if(mNxt) safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                compCtx.globalAlpha = 1.0;
+            } else {
+                if(mNxt) {
+                    safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                }
+            }
 
-                const fadeSpeed = 1.0; 
-                if (trans.main.progress < 1.0) { trans.main.progress += dt / fadeSpeed; if(trans.main.progress>=1.0){trans.main.progress=1.0; trans.main.buf = trans.main.nextBuf;} }
-                if (trans.wipe.progress < 1.0) { trans.wipe.progress += dt / fadeSpeed; if(trans.wipe.progress>=1.0){trans.wipe.progress=1.0; trans.wipe.buf = trans.wipe.nextBuf;} }
+            const animSpeed = 2.5;
 
-                updateAudioVolumes();
-
-                // ==================
-                // メインプレビューの描画 (常に60FPSで動作)
-                // ==================
-                compCtx.fillStyle = '#000'; compCtx.fillRect(0, 0, 1920, 1080);
+            // WIPE 描画
+            if (wipeState.status !== 'HIDDEN') {
+                if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
+                else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
                 
-                let mCur = trans.main.buf === 'a' ? trans.main.mediaA : trans.main.mediaB;
-                let mNxt = trans.main.nextBuf === 'a' ? trans.main.mediaA : trans.main.mediaB;
+                const ww = 480, wh = 270, fixedX = 50, fixedY = 800;
+                const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
                 
-                if (trans.main.progress < 1.0) {
-                    if(mCur) safeDrawImageCover(compCtx, mCur, 0, 0, 1920, 1080);
-                    compCtx.globalAlpha = trans.main.progress;
-                    if(mNxt) safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
-                    compCtx.globalAlpha = 1.0;
-                } else {
-                    if(mNxt) {
-                        safeDrawImageCover(compCtx, mNxt, 0, 0, 1920, 1080);
+                if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
+                    let wCur = trans.wipe.buf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
+                    let wNxt = trans.wipe.nextBuf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
+                    
+                    if (trans.wipe.progress < 1.0) {
+                        if(wCur) safeDrawImageCover(compCtx, wCur, fixedX, fixedY, ww, wh);
+                        compCtx.globalAlpha = trans.wipe.progress;
+                        if(wNxt) safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
+                        compCtx.globalAlpha = 1.0;
+                    } else {
+                        if(wNxt) {
+                            safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
+                        }
+                    }
+                    compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
+                }
+                if(wipeState.status === 'IN' || wipeState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh); }
+                compCtx.restore();
+            }
+
+            // TEXT描画関数
+            function drawTextOverlay(state, align, ry) {
+                if (state.status === 'HIDDEN') return;
+                if(state.status === 'IN') { state.progress += dt*animSpeed; if(state.progress>=1){state.progress=1; state.status='VISIBLE';} }
+                else if(state.status === 'OUT') { state.progress -= dt*animSpeed; if(state.progress<=0){state.status='HIDDEN';} }
+
+                compCtx.font = "48px WRCCleanBold"; let w1 = compCtx.measureText(state.l1).width;
+                compCtx.font = "32px WRCCleanRoman"; let w2 = compCtx.measureText(state.l2).width;
+                let rw = Math.max(w1, w2) + 60; rw = Math.max(rw, 300);
+                let rh = state.l2 ? 120 : 80;
+                let rx = align === 'left' ? 50 : 1920 - 50 - rw;
+                
+                let blockX = align === 'left' ? rx - rw + (rw * 2) * state.progress : rx + rw - (rw * 2) * state.progress;
+
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(state.progress > 0.5 || state.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; 
+                    if (align === 'left') compCtx.fillRect(rx, ry, 10, rh);
+                    else compCtx.fillRect(rx + rw - 10, ry, 10, rh);
+                    
+                    compCtx.fillStyle = '#fff'; compCtx.textBaseline = 'top';
+                    let tx = align === 'left' ? rx + 30 : rx + rw - 30;
+                    compCtx.textAlign = align === 'left' ? 'left' : 'right';
+                    
+                    compCtx.font = "48px WRCCleanBold";
+                    compCtx.fillText(state.l1, tx, ry + 15);
+                    if (state.l2) {
+                        compCtx.fillStyle = '#ccc';
+                        compCtx.font = "32px WRCCleanRoman";
+                        compCtx.fillText(state.l2, tx, ry + 70);
                     }
                 }
+                if(state.status === 'IN' || state.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
+                compCtx.restore();
+            }
 
-                const animSpeed = 2.5;
+            drawTextOverlay(text1State, 'left', 820);
+            drawTextOverlay(text2State, 'right', 820);
 
-                // WIPE 描画
-                if (wipeState.status !== 'HIDDEN') {
-                    if(wipeState.status === 'IN') { wipeState.progress += dt*animSpeed; if(wipeState.progress>=1){wipeState.progress=1; wipeState.status='VISIBLE';} }
-                    else if(wipeState.status === 'OUT') { wipeState.progress -= dt*animSpeed; if(wipeState.progress<=0){wipeState.status='HIDDEN';} }
+            // RADIO (MIC)
+            if (radioState.status !== 'HIDDEN') {
+                if(radioState.status === 'IN') { 
+                    radioState.progress += dt*animSpeed; 
+                    if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} 
+                }
+                else if(radioState.status === 'OUT') { 
+                    radioState.progress -= dt*animSpeed; 
+                    if(radioState.progress<=0){
+                        radioState.status='HIDDEN';
+                        if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+                        if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; }
+                    } 
+                }
+                
+                const rw = 400, rh = 100, rx = 50, ry = 540;
+                const blockX = rx - rw + (rw * 2) * radioState.progress;
+                
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
+                if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
                     
-                    const ww = 480, wh = 270, fixedX = 50, fixedY = 800;
-                    const blockX = fixedX - ww + (ww * 2) * wipeState.progress;
-                    compCtx.save(); compCtx.beginPath(); compCtx.rect(fixedX, fixedY, ww, wh); compCtx.clip();
-                    
-                    if(wipeState.progress > 0.5 || wipeState.status === 'VISIBLE') {
-                        let wCur = trans.wipe.buf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
-                        let wNxt = trans.wipe.nextBuf === 'a' ? trans.wipe.mediaA : trans.wipe.mediaB;
-                        
-                        if (trans.wipe.progress < 1.0) {
-                            if(wCur) safeDrawImageCover(compCtx, wCur, fixedX, fixedY, ww, wh);
-                            compCtx.globalAlpha = trans.wipe.progress;
-                            if(wNxt) safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
-                            compCtx.globalAlpha = 1.0;
+                    compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
+
+                    if (analyser && dataArray) {
+                        analyser.getByteFrequencyData(dataArray);
+                        const barWidth = 8; const gap = 4; const startX = rx + 200;
+                        for (let i = 0; i < 16; i++) {
+                            const val = dataArray[i] || 0; 
+                            const targetHeight = Math.max((val / 255) * 60, 4); 
+                            smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
+                            if(isNaN(smoothedBars[i])) smoothedBars[i] = 4; // NaNガード
+                            compCtx.fillStyle = '#ff5722';
+                            compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
+                        }
+                    }
+                }
+                if(radioState.status === 'IN' || radioState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
+                compCtx.restore();
+            }
+
+            // WEATHER (WIPEと同じ位置)
+            if (weatherState.status !== 'HIDDEN') {
+                if(weatherState.status === 'IN') { weatherState.progress += dt*1.5; if(weatherState.progress>=1){weatherState.progress=1; weatherState.status='VISIBLE';} }
+                else if(weatherState.status === 'OUT') { weatherState.progress -= dt*1.5; if(weatherState.progress<=0){weatherState.status='HIDDEN';} }
+                
+                let p = weatherState.progress;
+                let rx = 50, ry = 800, rw = 480; 
+
+                function drawCascadeItem(ctx, textFont, textStr, valFont, valStr, c_rx, itemY, c_rw, itemH, progress, pStart, pEnd) {
+                    let pInner = (progress - pStart) / (pEnd - pStart);
+                    if (pInner <= 0) return;
+                    if (pInner > 1) pInner = 1.0;
+
+                    let blockX, blockW, textAlpha = 0;
+                    if (pInner < 0.5) {
+                        let p2 = pInner * 2; blockX = c_rx; blockW = c_rw * p2; textAlpha = 0;
+                    } else {
+                        let p2 = (pInner - 0.5) * 2; blockX = c_rx + c_rw * p2; blockW = c_rw * (1 - p2); textAlpha = p2;
+                    }
+
+                    ctx.save(); ctx.beginPath(); ctx.rect(c_rx, itemY, c_rw, itemH); ctx.clip();
+                    if (pInner > 0) {
+                        ctx.fillStyle = `rgba(10, 25, 47, 0.95)`; ctx.fillRect(c_rx, itemY, c_rw, itemH);
+                        ctx.fillStyle = '#ff5722'; ctx.fillRect(c_rx, itemY, 10, itemH);
+                    }
+                    if (textAlpha > 0) {
+                        ctx.globalAlpha = textAlpha;
+                        if (valStr !== null) {
+                            ctx.fillStyle = '#fff'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                            let labelW = ctx.measureText(textStr).width;
+                            ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
+                            ctx.font = valFont; ctx.fillText(valStr, c_rx + 30 + labelW + 10, itemY + itemH/2 + 2);
                         } else {
-                            if(wNxt) {
-                                safeDrawImageCover(compCtx, wNxt, fixedX, fixedY, ww, wh);
-                            }
+                            ctx.fillStyle = '#ff5722'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                            ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
+                            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(c_rx + 30, itemY + itemH - 2, c_rw - 50, 2);
                         }
-                        compCtx.strokeStyle = '#ff5722'; compCtx.lineWidth = 8; compCtx.strokeRect(fixedX, fixedY, ww, wh);
+                        ctx.globalAlpha = 1.0;
                     }
-                    if(wipeState.status === 'IN' || wipeState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, fixedY, ww, wh); }
-                    compCtx.restore();
+                    if (blockW > 0) { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, itemY, blockW, itemH); }
+                    ctx.restore();
                 }
 
-                // TEXT描画関数
-                function drawTextOverlay(state, align, ry) {
-                    if (state.status === 'HIDDEN') return;
-                    if(state.status === 'IN') { state.progress += dt*animSpeed; if(state.progress>=1){state.progress=1; state.status='VISIBLE';} }
-                    else if(state.status === 'OUT') { state.progress -= dt*animSpeed; if(state.progress<=0){state.status='HIDDEN';} }
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "WIND:", "32px WRCCleanRoman", weatherData.wind, rx, ry + 135, rw, 45, p, 0.0, 0.4);
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "TEMP:", "32px WRCCleanRoman", weatherData.temp, rx, ry + 90, rw, 45, p, 0.2, 0.6);
+                drawCascadeItem(compCtx, "32px WRCCleanBold", "COND:", "32px WRCCleanBold", weatherData.cond, rx, ry + 45, rw, 45, p, 0.4, 0.8);
+                drawCascadeItem(compCtx, "24px WRCCleanBold", "WEATHER CONDITION", null, null, rx, ry, rw, 45, p, 0.6, 1.0);
+            }
 
-                    compCtx.font = "48px WRCCleanBold"; let w1 = compCtx.measureText(state.l1).width;
-                    compCtx.font = "32px WRCCleanRoman"; let w2 = compCtx.measureText(state.l2).width;
-                    let rw = Math.max(w1, w2) + 60; rw = Math.max(rw, 300);
-                    let rh = state.l2 ? 120 : 80;
-                    let rx = align === 'left' ? 50 : 1920 - 50 - rw;
-                    
-                    let blockX = align === 'left' ? rx - rw + (rw * 2) * state.progress : rx + rw - (rw * 2) * state.progress;
+            // SCHEDULE
+            if (scheduleState.status !== 'HIDDEN') {
+                if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
+                else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
 
-                    compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                    if(state.progress > 0.5 || state.status === 'VISIBLE') {
-                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                        compCtx.fillStyle = '#ff5722'; 
-                        if (align === 'left') compCtx.fillRect(rx, ry, 10, rh);
-                        else compCtx.fillRect(rx + rw - 10, ry, 10, rh);
-                        
-                        compCtx.fillStyle = '#fff'; compCtx.textBaseline = 'top';
-                        let tx = align === 'left' ? rx + 30 : rx + rw - 30;
-                        compCtx.textAlign = align === 'left' ? 'left' : 'right';
-                        
-                        compCtx.font = "48px WRCCleanBold";
-                        compCtx.fillText(state.l1, tx, ry + 15);
-                        if (state.l2) {
-                            compCtx.fillStyle = '#ccc';
-                            compCtx.font = "32px WRCCleanRoman";
-                            compCtx.fillText(state.l2, tx, ry + 70);
-                        }
-                    }
-                    if(state.status === 'IN' || state.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
-                    compCtx.restore();
+                const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; 
+                const blockX = sx - sw + (sw * 2) * scheduleState.progress;
+
+                const now = new Date(); let targetH = 0, targetM = 0;
+                if (scheduleState.time) { const parts = scheduleState.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
+                let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
+                let diff = targetDate - now; if (diff < 0) diff = 0; 
+                const diffSec = Math.floor(diff / 1000);
+                const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
+                const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
+                const ss = String(diffSec % 60).padStart(2, '0');
+                const countdownStr = `${hh}:${mm}:${ss}`;
+
+                compCtx.save(); compCtx.beginPath(); compCtx.rect(sx, sy, sw, sh); compCtx.clip();
+                if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
+                    compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
+                    compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
+
+                    compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
+                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
+                    compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
+
+                    compCtx.fillStyle = 'rgba(255,255,255,0.3)';
+                    compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
+
+                    compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
+                    compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
+                    compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
+
+                    compCtx.font = "40px WRCCleanBold";
+                    compCtx.fillText("LOCAL", sx + 510, sy + 70);
+                    const localWidth = compCtx.measureText("LOCAL ").width;
+                    compCtx.fillStyle = '#fff'; compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
                 }
+                if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); }
+                compCtx.restore();
+            }
 
-                drawTextOverlay(text1State, 'left', 820);
-                drawTextOverlay(text2State, 'right', 820);
-
-                // RADIO (MIC)
-                if (radioState.status !== 'HIDDEN') {
-                    if(radioState.status === 'IN') { radioState.progress += dt*animSpeed; if(radioState.progress>=1){radioState.progress=1; radioState.status='VISIBLE';} }
-                    else if(radioState.status === 'OUT') { radioState.progress -= dt*animSpeed; if(radioState.progress<=0){ radioState.status='HIDDEN'; if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (micNode) { micNode.disconnect(); analyser.disconnect(); micNode = null; analyser = null; } } }
-                    
-                    const rw = 400, rh = 100, rx = 50, ry = 540;
-                    const blockX = rx - rw + (rw * 2) * radioState.progress;
-                    
-                    compCtx.save(); compCtx.beginPath(); compCtx.rect(rx, ry, rw, rh); compCtx.clip();
-                    if(radioState.progress > 0.5 || radioState.status === 'VISIBLE') {
-                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(rx, ry, rw, rh);
-                        compCtx.fillStyle = '#ff5722'; compCtx.fillRect(rx, ry, 10, rh); 
-                        compCtx.fillStyle = '#fff'; compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                        compCtx.font = "48px WRCCleanBold"; compCtx.fillText("RADIO", rx + 30, ry + rh/2 + 5);
-
-                        if (analyser && dataArray) {
-                            analyser.getByteFrequencyData(dataArray);
-                            const barWidth = 8; const gap = 4; const startX = rx + 200;
-                            for (let i = 0; i < 16; i++) {
-                                const val = dataArray[i] || 0; // 安全対策
-                                const targetHeight = Math.max((val / 255) * 60, 4); 
-                                smoothedBars[i] += (targetHeight - smoothedBars[i]) * (dt * 15);
-                                if(isNaN(smoothedBars[i])) smoothedBars[i] = 4; // NaN汚染を絶対防御
-                                compCtx.fillStyle = '#ff5722';
-                                compCtx.fillRect(startX + i * (barWidth + gap), ry + (rh - smoothedBars[i])/2, barWidth, smoothedBars[i]);
-                            }
-                        }
-                    }
-                    if(radioState.status === 'IN' || radioState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, ry, rw, rh); }
-                    compCtx.restore();
+            // ==================
+            // 右下へのファイナルストリーム描画
+            // ==================
+            const elapsedStream = time - lastStreamDrawTime;
+            if (elapsedStream >= (1000 / targetFPS)) {
+                lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
+                streamCtx.clearRect(0,0,1920,1080);
+                streamCtx.drawImage(compositeCanvas, 0, 0);
+                
+                if(logoState && logoLoaded && logoImg.height > 0) {
+                    const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
+                    streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
                 }
-
-                // WEATHER (WIPEと同じ位置)
-                if (weatherState.status !== 'HIDDEN') {
-                    if(weatherState.status === 'IN') { weatherState.progress += dt*1.5; if(weatherState.progress>=1){weatherState.progress=1; weatherState.status='VISIBLE';} }
-                    else if(weatherState.status === 'OUT') { weatherState.progress -= dt*1.5; if(weatherState.progress<=0){weatherState.status='HIDDEN';} }
-                    
-                    let p = weatherState.progress;
-                    let rx = 50, ry = 800, rw = 480; 
-
-                    function drawCascadeItem(ctx, textFont, textStr, valFont, valStr, c_rx, itemY, c_rw, itemH, progress, pStart, pEnd) {
-                        let pInner = (progress - pStart) / (pEnd - pStart);
-                        if (pInner <= 0) return;
-                        if (pInner > 1) pInner = 1.0;
-
-                        let blockX, blockW, textAlpha = 0;
-                        if (pInner < 0.5) {
-                            let p2 = pInner * 2; blockX = c_rx; blockW = c_rw * p2; textAlpha = 0;
-                        } else {
-                            let p2 = (pInner - 0.5) * 2; blockX = c_rx + c_rw * p2; blockW = c_rw * (1 - p2); textAlpha = p2;
-                        }
-
-                        ctx.save(); ctx.beginPath(); ctx.rect(c_rx, itemY, c_rw, itemH); ctx.clip();
-                        if (pInner > 0) {
-                            ctx.fillStyle = `rgba(10, 25, 47, 0.95)`; ctx.fillRect(c_rx, itemY, c_rw, itemH);
-                            ctx.fillStyle = '#ff5722'; ctx.fillRect(c_rx, itemY, 10, itemH);
-                        }
-                        if (textAlpha > 0) {
-                            ctx.globalAlpha = textAlpha;
-                            if (valStr !== null) {
-                                ctx.fillStyle = '#fff'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                                let labelW = ctx.measureText(textStr).width;
-                                ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
-                                ctx.font = valFont; ctx.fillText(valStr, c_rx + 30 + labelW + 10, itemY + itemH/2 + 2);
-                            } else {
-                                ctx.fillStyle = '#ff5722'; ctx.font = textFont; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                                ctx.fillText(textStr, c_rx + 30, itemY + itemH/2 + 2);
-                                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(c_rx + 30, itemY + itemH - 2, c_rw - 50, 2);
-                            }
-                            ctx.globalAlpha = 1.0;
-                        }
-                        if (blockW > 0) { ctx.fillStyle = '#ff5722'; ctx.fillRect(blockX, itemY, blockW, itemH); }
-                        ctx.restore();
-                    }
-
-                    drawCascadeItem(compCtx, "32px WRCCleanBold", "WIND:", "32px WRCCleanRoman", weatherData.wind, rx, ry + 135, rw, 45, p, 0.0, 0.4);
-                    drawCascadeItem(compCtx, "32px WRCCleanBold", "TEMP:", "32px WRCCleanRoman", weatherData.temp, rx, ry + 90, rw, 45, p, 0.2, 0.6);
-                    drawCascadeItem(compCtx, "32px WRCCleanBold", "COND:", "32px WRCCleanBold", weatherData.cond, rx, ry + 45, rw, 45, p, 0.4, 0.8);
-                    drawCascadeItem(compCtx, "24px WRCCleanBold", "WEATHER CONDITION", null, null, rx, ry, rw, 45, p, 0.6, 1.0);
-                }
-
-                // SCHEDULE
-                if (scheduleState.status !== 'HIDDEN') {
-                    if(scheduleState.status === 'IN') { scheduleState.progress += dt*animSpeed; if(scheduleState.progress>=1){scheduleState.progress=1; scheduleState.status='VISIBLE';} }
-                    else if(scheduleState.status === 'OUT') { scheduleState.progress -= dt*animSpeed; if(scheduleState.progress<=0){scheduleState.status='HIDDEN';} }
-
-                    const sw = 1250, sh = 130; const sx = (1920 - sw) / 2; const sy = 1080 - sh; 
-                    const blockX = sx - sw + (sw * 2) * scheduleState.progress;
-
-                    const now = new Date(); let targetH = 0, targetM = 0;
-                    if (scheduleState.time) { const parts = scheduleState.time.split(':'); targetH = parseInt(parts[0], 10); targetM = parseInt(parts[1], 10); }
-                    let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetH, targetM, 0);
-                    let diff = targetDate - now; if (diff < 0) diff = 0; 
-                    const diffSec = Math.floor(diff / 1000);
-                    const hh = String(Math.floor(diffSec / 3600)).padStart(2, '0');
-                    const mm = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
-                    const ss = String(diffSec % 60).padStart(2, '0');
-                    const countdownStr = `${hh}:${mm}:${ss}`;
-
-                    compCtx.save(); compCtx.beginPath(); compCtx.rect(sx, sy, sw, sh); compCtx.clip();
-                    if(scheduleState.progress > 0.5 || scheduleState.status === 'VISIBLE') {
-                        compCtx.fillStyle = 'rgba(10, 25, 47, 0.95)'; compCtx.fillRect(sx, sy, sw, sh);
-                        compCtx.fillStyle = '#ff5722'; compCtx.fillRect(sx, sy, sw, 6);
-
-                        compCtx.fillStyle = '#fff'; compCtx.font = "90px WRCCleanBold";
-                        compCtx.textAlign = 'left'; compCtx.textBaseline = 'middle';
-                        compCtx.fillText(countdownStr, sx + 50, sy + (sh / 2) + 5);
-
-                        compCtx.fillStyle = 'rgba(255,255,255,0.3)';
-                        compCtx.fillRect(sx + 480, sy + 25, 2, sh - 50);
-
-                        compCtx.fillStyle = '#ff5722'; compCtx.font = "26px WRCCleanBold"; 
-                        compCtx.textAlign = 'left'; compCtx.textBaseline = 'top';
-                        compCtx.fillText("COMING UP NEXT", sx + 510, sy + 30);
-
-                        compCtx.font = "40px WRCCleanBold";
-                        compCtx.fillText("LOCAL", sx + 510, sy + 70);
-                        const localWidth = compCtx.measureText("LOCAL ").width;
-                        compCtx.fillStyle = '#fff'; compCtx.fillText(`${scheduleState.time || "00:00"}   ${scheduleState.text}`, sx + 510 + localWidth, sy + 70);
-                    }
-                    if(scheduleState.status === 'IN' || scheduleState.status === 'OUT') { compCtx.fillStyle = '#ff5722'; compCtx.fillRect(blockX, sy, sw, sh); }
-                    compCtx.restore();
-                }
-
-                // ==================
-                // 右下へのファイナルストリーム描画
-                // ==================
-                const elapsedStream = time - lastStreamDrawTime;
-                if (elapsedStream >= (1000 / targetFPS)) {
-                    lastStreamDrawTime = time - (elapsedStream % (1000 / targetFPS));
-                    streamCtx.clearRect(0,0,1920,1080);
-                    streamCtx.drawImage(compositeCanvas, 0, 0);
-                    
-                    if(logoState && logoLoaded && logoImg.height > 0) {
-                        const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
-                        streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
-                    }
-                }
-            } catch (err) {
-                // エラーを握りつぶして絶対にループを止めない
             }
         }
         
-        requestAnimationFrame(renderLoop); // ★常に実行開始！
-
+        // 描画ループは常に走らせ続ける (停止させない)
+        setInterval(renderLoop, 1000 / 60);
 
         // ==========================================
         // 5. P2P WebRTC & Audio Mixer
@@ -971,24 +972,17 @@
                         const handleStream = (remoteStream) => {
                             const extVideo = document.getElementById('ext-cam-video');
                             const monitorVideo = document.getElementById('extcam-monitor-video');
-                            
-                            // ★完全放置。二度と上書きしない
-                            if (extVideo.srcObject !== remoteStream) { extVideo.srcObject = remoteStream; extVideo.play().catch(()=>{}); }
-                            if (monitorVideo && monitorVideo.srcObject !== remoteStream) {
-                                monitorVideo.srcObject = remoteStream;
-                                monitorVideo.play().catch(()=>{});
-                                document.getElementById('extcam-offline-text').style.display = 'none';
-                            }
+                            extVideo.srcObject = remoteStream;
+                            if (monitorVideo) { monitorVideo.srcObject = remoteStream; document.getElementById('extcam-offline-text').style.display = 'none'; }
                             if(!extCamConnected) {
                                 extCamConnected = true;
                                 if (audioCtx && audioMixerDest) { try { const streamSrc = audioCtx.createMediaStreamSource(remoteStream); streamSrc.connect(extCamGain); } catch(e) {} }
                                 document.getElementById('cam-control-group').style.display = 'flex';
-                                populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
+                                populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles); resizePreview();
                                 alert("📱 EXTERNAL CAMERA CONNECTED!");
                             }
                         };
                         call.on('stream', handleStream);
-                        // WebRTCの生トラックを監視
                         if (call.peerConnection) { call.peerConnection.addEventListener('track', (event) => { if (event.streams && event.streams[0]) { handleStream(event.streams[0]); } }); }
                         call.on('close', () => { disconnectExtCamHost(); });
                     }
@@ -1033,12 +1027,12 @@
         async function initExternalCam() {
             try {
                 document.getElementById('mode-selection').style.display = 'none'; document.getElementById('extcam-mode').style.display = 'flex';
-                // ★とにかく安定して映る設定（フルHDなどの強要を外す）
+                // ★エラー回避最優先。最も安定した設定で呼び出す
                 const constraints = { video: { facingMode: 'environment' }, audio: true };
-                try { extCamStream = await navigator.mediaDevices.getUserMedia(constraints); } catch(e) { extCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
+                extCamStream = await navigator.mediaDevices.getUserMedia(constraints);
                 document.getElementById('extcam-preview').srcObject = extCamStream;
                 peer = new Peer(null, peerConfig);
-                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable). Enter HOST ID."; });
+                peer.on('open', () => { document.getElementById('extcam-status-text').innerText = "Camera Ready (Stable Mode). Enter HOST ID."; });
             } catch(e) { alert("カメラの起動に失敗しました。権限を許可してください。"); }
         }
 
