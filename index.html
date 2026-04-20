@@ -69,7 +69,7 @@
         <button class="btn" onclick="initViewer()">VIEWER MODE</button>
         <button class="btn" onclick="initBroadcast()">BROADCAST MODE</button>
         <button class="btn" onclick="initExternalCam()" style="font-size: 18px; border-color: #e91e63; color: #e91e63;">EXTERNAL CAM MODE</button>
-        <div id="version-text">VER 29.0.0 (FPS ENGINE RESTORED)</div>
+        <div id="version-text">VER 30.0.0 (NO AUTO-SWITCH & LOGO FIX)</div>
     </div>
 
     <div id="viewer-mode" class="sub-mode-screen">
@@ -251,7 +251,7 @@
         // ==========================================
         // データベース構築
         // ==========================================
-        const dbName = "WrcBroadcastDB18";
+        const dbName = "WrcBroadcastDB19";
         let db;
         let viewerConns = [];
 
@@ -290,7 +290,7 @@
         window.onload = async () => {
             try {
                 await initDB();
-                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateButtons('main', mainFiles); }
+                const mFiles = await loadFilesFromDB('main'); if(mFiles.length > 0) { mainFiles = mFiles; populateButtons('main', mainFiles); switchMainMedia(0, document.querySelectorAll('#main-btn-list .media-track-btn')[extCamConnected ? 1 : 0]); }
                 const wFiles = await loadFilesFromDB('wipe'); if(wFiles.length > 0) { wipeFiles = wFiles; populateButtons('wipe', wipeFiles); }
                 const bFiles = await loadFilesFromDB('bgm');  if(bFiles.length > 0) { bgmFiles = bFiles; populateButtons('bgm', bgmFiles); }
                 const lFile = await loadFilesFromDB('logo');  if(lFile.length > 0) { logoFile = lFile[0]; logoImg.src = URL.createObjectURL(logoFile); logoState = true; }
@@ -304,6 +304,12 @@
                 setFPS(targetFPS);
 
                 document.getElementById('bgm-player').addEventListener('ended', () => { playBgmRandom(); });
+
+                setInterval(() => {
+                    const bgm = document.getElementById('bgm-player');
+                    if (activeBgmMedia !== null && bgm && bgm.paused && !bgm.ended) { bgm.play().catch(()=>{}); }
+                    if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
+                }, 1000);
 
             } catch(e) {}
         };
@@ -412,35 +418,25 @@
                 };
                 container.appendChild(btn);
             });
-
-            if (files.length > 0 && activeMainMedia === null && type === 'main') {
-                activeMainMedia = 0; switchMainMedia(0, container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0]);
-            }
-            if (files.length > 0 && activeWipeMedia === null && type === 'wipe') {
-                activeWipeMedia = 0; switchWipeMedia(0, container.querySelectorAll('.media-track-btn')[extCamConnected ? 1 : 0]);
-            }
         }
 
-        // --- 追加アップロード対応のファイル処理 ---
+        // --- 追加アップロード (勝手に切り替わらないように修正) ---
         function handleFiles(type) {
             const input = document.getElementById(`${type}-file`);
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
             
             if(type === 'main') { 
-                mainFiles = [...mainFiles, ...newFiles].slice(0, 9); // 追加して上限9
+                mainFiles = [...mainFiles, ...newFiles].slice(0, 9); 
                 saveFilesToDB('main', mainFiles); 
-                activeMainMedia = null; 
                 populateButtons('main', mainFiles); 
             }
             if(type === 'wipe') { 
-                wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); // 追加して上限9
+                wipeFiles = [...wipeFiles, ...newFiles].slice(0, 9); 
                 saveFilesToDB('wipe', wipeFiles); 
-                activeWipeMedia = null; 
                 populateButtons('wipe', wipeFiles); 
-                toggleWipe(true); 
             }
-            input.value = ''; // これで何度でもアップロードできるようにリセット
+            input.value = ''; // 次のアップロードのためにリセット
         }
 
         function handleAudioFiles() {
@@ -448,31 +444,37 @@
             const newFiles = Array.from(input.files);
             if(newFiles.length === 0) return;
             
-            bgmFiles = [...bgmFiles, ...newFiles].slice(0, 18); // 追加して上限18
+            bgmFiles = [...bgmFiles, ...newFiles].slice(0, 18); 
             saveFilesToDB('bgm', bgmFiles); 
-            activeBgmMedia = null; 
             populateButtons('bgm', bgmFiles);
             input.value = '';
         }
 
+        let logoFile = null, logoImg = new Image(), logoState = false, logoLoaded = false;
+        logoImg.onload = () => { logoLoaded = true; }; // ロゴの読み込み完了を確実に検知
+
         function handleLogo() {
             const input = document.getElementById('logo-file');
             if(input.files.length > 0) {
-                logoFile = input.files[0]; logoImg.src = URL.createObjectURL(logoFile);
-                saveFilesToDB('logo', [logoFile]); logoState = true;
+                logoLoaded = false;
+                logoFile = input.files[0]; 
+                logoImg.src = URL.createObjectURL(logoFile);
+                saveFilesToDB('logo', [logoFile]); 
+                logoState = true;
             }
             input.value = '';
         }
+        function toggleLogo(show) { logoState = show; }
 
         // --- クリア機能 ---
         function clearMedia(type) {
             if(type === 'main') {
-                mainFiles = []; saveFilesToDB('main', []); activeMainMedia = null;
+                mainFiles = []; saveFilesToDB('main', []); activeMainMedia = null; isMainVideo = false;
                 document.getElementById('main-video').src = ""; document.getElementById('main-img').src = "";
                 populateButtons('main', []);
             }
             if(type === 'wipe') {
-                wipeFiles = []; saveFilesToDB('wipe', []); activeWipeMedia = null;
+                wipeFiles = []; saveFilesToDB('wipe', []); activeWipeMedia = null; isWipeVideo = false;
                 document.getElementById('wipe-video').src = ""; document.getElementById('wipe-img').src = "";
                 populateButtons('wipe', []); toggleWipe(false);
             }
@@ -566,8 +568,6 @@
             }
         }
 
-        function toggleLogo(show) { logoState = show; }
-
         function endBroadcast() {
             const confirmEnd = confirm("本当に配信を終了し、視聴者をホーム画面に戻しますか？");
             if (!confirmEnd) return;
@@ -576,18 +576,21 @@
         }
 
         function disconnectExtCamHost() {
+            if(extCamCall) { extCamCall.close(); extCamCall = null; }
             extCamConnected = false;
             document.getElementById('cam-control-group').style.display = 'none';
-            
+            document.getElementById('extcam-offline-text').style.display = 'block';
+
             const extVideo = document.getElementById('ext-cam-video');
+            const monitorVideo = document.getElementById('extcam-monitor-video');
             if(extVideo) extVideo.srcObject = null;
+            if(monitorVideo) monitorVideo.srcObject = null;
             
-            if (isMainVideo === 'ext-cam') switchMainMedia(0);
+            if (isMainVideo === 'ext-cam') switchMainMedia(0, document.querySelectorAll('#main-btn-list .media-track-btn')[0]);
             if (isWipeVideo === 'ext-cam') { isWipeVideo = null; activeWipeMedia = null; toggleWipe(false); }
             
             populateButtons('main', mainFiles); populateButtons('wipe', wipeFiles);
         }
-
 
         // ==========================================
         // 3. RADIO (MIC) 機能
@@ -627,7 +630,7 @@
         }
 
         // ==========================================
-        // 4. キャンバス描画エンジン (正常な requestAnimationFrame に修正)
+        // 4. キャンバス描画エンジン
         // ==========================================
         const compositeCanvas = document.getElementById('composite-canvas');
         const compCtx = compositeCanvas.getContext('2d');
@@ -666,15 +669,14 @@
             ctx.drawImage(img, offsetX, offsetY, drawW, drawH); ctx.restore();
         }
 
-        let lastRenderTime = performance.now();
+        let lastUpdate = performance.now();
         let lastStreamDrawTime = 0;
 
         function renderLoop(time) {
             requestAnimationFrame(renderLoop);
-            
-            let dt = (time - lastRenderTime) / 1000;
+            let dt = (time - lastUpdate) / 1000;
             if(dt > 0.1) dt = 0.1;
-            lastRenderTime = time;
+            lastUpdate = time;
 
             // オーディオの可視状態連動
             if (audioCtx) {
@@ -876,7 +878,8 @@
                 streamCtx.clearRect(0,0,1920,1080);
                 streamCtx.drawImage(compositeCanvas, 0, 0);
                 
-                if(logoState && logoImg.src && logoImg.width) {
+                // ロゴの確実な描画
+                if(logoState && logoLoaded && logoImg.height > 0) {
                     const logoH = 100; const logoW = logoImg.width * (logoH / logoImg.height);
                     streamCtx.drawImage(logoImg, 1920 - logoW - 50, 50, logoW, logoH);
                 }
@@ -948,11 +951,8 @@
                 const audioTrack = initAudioMixer();
 
                 const canvasStream = captureFunc.call(streamCanvas, 60); 
-                // 【重要】WebRTCのビデオエンコードを「高画質維持」にロックする
                 const videoTrack = canvasStream.getVideoTracks()[0];
-                if ('contentHint' in videoTrack) {
-                    videoTrack.contentHint = 'detail';
-                }
+                if ('contentHint' in videoTrack) { videoTrack.contentHint = 'detail'; }
                 
                 const tracks = [videoTrack, audioTrack].filter(t => t);
                 mixedStream = new MediaStream(tracks);
@@ -995,8 +995,6 @@
                         };
 
                         call.on('stream', handleStream);
-                        
-                        // 【WebRTCネイティブ監視】映像トラックの遅延到着を確実にキャッチする
                         if (call.peerConnection) {
                             call.peerConnection.addEventListener('track', (event) => {
                                 if (event.streams && event.streams[0]) {
@@ -1072,9 +1070,8 @@
                 document.getElementById('mode-selection').style.display = 'none';
                 document.getElementById('extcam-mode').style.display = 'flex';
                 
-                // 【限界突破】FULL HDを強制要求
                 const constraints = { 
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                    video: { facingMode: 'environment', width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 } }, 
                     audio: { echoCancellation: true, noiseSuppression: true } 
                 };
                 
